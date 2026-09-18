@@ -1,0 +1,16 @@
+{
+  "name": "@figma-mcp/plugin",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Figma Desktop Companion Plugin for MCP server",
+  "scripts": {
+    "build": "node esbuild.config.js",
+    "watch": "node esbuild.config.js --watch"
+  },
+  "devDependencies": {
+    "@figma/plugin-typings": "^1.106.0",
+    "esbuild": "^0.25.0",
+    "typescript": "^5.8.2"
+  }
+}

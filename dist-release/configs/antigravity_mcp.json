@@ -1,0 +1,12 @@
+{
+  "figma": {
+    "command": "npx",
+    "args": [
+      "-y",
+      "figma-mcp"
+    ],
+    "env": {
+      "FIGMA_ACCESS_TOKEN": "your_optional_figma_rest_token_here"
+    }
+  }
+}

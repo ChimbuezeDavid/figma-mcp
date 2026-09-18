@@ -1,0 +1,36 @@
+{
+  "name": "figma-mcp",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Enterprise Model Context Protocol (MCP) server & companion plugin for AI-driven UI/UX design & prototyping in Figma",
+  "main": "dist/index.js",
+  "bin": {
+    "figma-mcp": "dist/index.js"
+  },
+  "files": [
+    "dist",
+    "plugin-dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsx watch src/index.ts",
+    "start": "node dist/index.js"
+  },
+  "dependencies": {
+    "@figma/rest-api-spec": "^0.42.0",
+    "@modelcontextprotocol/sdk": "^1.6.1",
+    "dotenv": "^16.4.7",
+    "lru-cache": "^11.5.2",
+    "pino": "^10.3.1",
+    "ws": "^8.18.1",
+    "zod": "^3.24.2"
+  },
+  "devDependencies": {
+    "@types/node": "^22.13.9",
+    "@types/ws": "^8.5.14",
+    "tsx": "^4.19.3",
+    "typescript": "^5.8.2"
+  }
+}

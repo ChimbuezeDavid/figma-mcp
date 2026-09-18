@@ -1,0 +1,27 @@
+{
+  "name": "figma-mcp-monorepo",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Figma MCP Server and Figma Companion Plugin for AI-driven prototyping and UI/UX design",
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "build": "npm run build --workspaces",
+    "package": "node scripts/package-release.js",
+    "clean:port": "powershell -Command \"$p = (Get-NetTCPConnection -LocalPort 3055 -ErrorAction SilentlyContinue).OwningProcess; if ($p) { Stop-Process -Id $p -Force; Write-Host 'Port 3055 freed' } else { Write-Host 'Port 3055 is already free' }\"",
+    "dev:server": "npm --workspace=figma-mcp run dev",
+    "build:plugin": "npm --workspace=@figma-mcp/plugin run build",
+    "watch:plugin": "npm --workspace=@figma-mcp/plugin run watch"
+  },
+  "keywords": [
+    "mcp",
+    "figma",
+    "ai",
+    "prototyping",
+    "ui-ux"
+  ],
+  "author": "",
+  "license": "MIT"
+}
