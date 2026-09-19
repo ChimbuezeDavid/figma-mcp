@@ -129,7 +129,7 @@
   <div class="info-section">
     <div class="info-row">
       <span class="info-label">WebSocket:</span>
-      <span class="info-val" id="ws-url">ws://localhost:3055</span>
+      <span class="info-val" id="ws-url">ws://127.0.0.1:3055</span>
     </div>
     <div class="info-row">
       <span class="info-label">Document:</span>
@@ -145,7 +145,7 @@
   <div id="log-container"></div>
 
   <script>
-    const ENDPOINTS = ["ws://localhost:3055"];
+    const ENDPOINTS = ["ws://127.0.0.1:3055", "ws://localhost:3055"];
     let endpointIndex = 0;
     let ws = null;
     let reconnectTimeout = null;

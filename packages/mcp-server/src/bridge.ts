@@ -23,10 +23,11 @@ export class FigmaBridge {
   public start(): Promise<void> {
     return new Promise((resolve, reject) => {
       try {
-        this.wss = new WebSocketServer({ port: this.port });
+        const host = process.env.FIGMA_BRIDGE_HOST || "0.0.0.0";
+        this.wss = new WebSocketServer({ port: this.port, host });
 
         this.wss.on("listening", () => {
-          logger.info({ port: this.port }, "Figma Bridge WebSocket server listening");
+          logger.info({ port: this.port, host }, "Figma Bridge WebSocket server listening");
           resolve();
         });
 

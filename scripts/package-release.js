@@ -41,7 +41,12 @@ const standaloneManifest = {
   editorType: ["figma"],
   networkAccess: {
     allowedDomains: ["*"],
-    devAllowedDomains: ["http://localhost:3055"],
+    devAllowedDomains: [
+      "http://localhost:3055",
+      "http://127.0.0.1:3055",
+      "ws://localhost:3055",
+      "ws://127.0.0.1:3055"
+    ],
     reasoning: "Connects to the local Figma MCP Server WebSocket bridge to receive design and prototyping instructions.",
   },
 };
