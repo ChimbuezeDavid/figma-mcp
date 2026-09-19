@@ -84,7 +84,8 @@ npm run dev:server
 
 ## 🛠️ Complete Toolset
 
-### 1. Diagnostics & Inspection
+### 1. Diagnostics, Inspection & HCI Quality
+- **`lint_design_compliance`**: *(Enterprise)* Automatically audits and scores any screen against HCI & UI/UX standards (Fitts's Law $\ge 44\text{px}$ touch targets, 8pt spacing grid consistency, calibrated typography leading, and zero emojis).
 - **`get_figma_status`**: Checks if the Figma companion plugin is currently active and connected.
 - **`ping_figma`**: Tests round-trip WebSocket latency and document verification.
 - **`get_document_info`**: Retrieves document name, pages list, current active page, and selection count.
@@ -92,7 +93,14 @@ npm run dev:server
 - **`inspect_node`**: Recursively inspects any node by ID with strict depth capping (max 4) to protect LLM context windows.
 - **`get_selection`**: Inspects details of whichever elements are currently highlighted on the canvas.
 
-### 2. Observability & Audit Trails (Enterprise)
+### 2. Design Guardian & HCI Ergonomics (Enterprise)
+- **Zero-Emoji Enforcement**: Automatically sanitizes emojis from all text elements (`create_text`, `set_text_content`, `generate_ui_tree`), preventing cartoonish AI outputs and directing models to use `create_svg_icon` with vector SVG paths instead.
+- **Intelligent Typography & Leading Engine**: Automatically harmonizes line-height (leading) and letter-spacing (tracking) per font size (tight leading $1.15\times$ on large headlines $\ge 32\text{px}$, comfortable $1.5\times$ leading on body text, open tracking on uppercase captions).
+- **HCI Touch Target Guardian (Fitts's Law)**: Automatically clamps interactive buttons and tap targets to $\ge 44\text{px}$ (Apple HIG) or $\ge 48\text{px}$ (Material Design).
+- **8-Point Spacing Grid**: Validates and snaps paddings and gaps to clean 4pt/8pt increments ($4, 8, 12, 16, 20, 24, 32, 40, 48\text{px}$).
+- **Color Contrast Guardian (WCAG 2.1 AA)**: Computes relative luminance and contrast ratios ($> 4.5:1$ for body, $> 3:1$ for headers) to prevent low-contrast text combinations.
+
+### 3. Observability & Audit Trails (Enterprise)
 - **Structured JSON Logging**: Powered by `pino` directed strictly to `stderr` (preserving STDIO JSON-RPC integrity). Configurable log level via `LOG_LEVEL=info|debug|warn`.
 - **Request Correlation**: Each tool invocation is assigned an 8-character `requestId` tracked from receipt through plugin completion.
 - **Audit Logging**: All mutating canvas operations (`create_frame`, `set_prototype_interaction`, `delete_nodes`, `generate_ui_tree`, etc.) record an explicit structured `AUDIT` record with file, page, and mutation metadata.

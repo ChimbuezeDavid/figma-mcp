@@ -143,9 +143,9 @@ server.tool(
 // Tool: Create a text layer
 server.tool(
   "create_text",
-  "Create a styled text element on the Figma canvas or inside a container",
+  "Create a styled text element on the Figma canvas or inside a container. Strictly disallows emojis (use 'create_svg_icon' for vector icons). Automatically calculates and applies calibrated proportional leading (line-height) and optical tracking (letter-spacing) according to typographic hierarchy.",
   {
-    text: z.string().describe("The text content to display"),
+    text: z.string().describe("The text content to display (must NOT contain emojis; use clean UI copy)"),
     fontSize: z.number().optional().describe("Font size in pixels (defaults to 16)"),
     fontFamily: z.string().optional().describe("Font family (defaults to 'Inter')"),
     fontWeight: z.string().optional().describe("Font weight: 'Regular', 'Medium', 'Bold'"),
@@ -304,10 +304,10 @@ server.tool(
 // Tool: Set Text Content
 server.tool(
   "set_text_content",
-  "Update the characters of an existing text layer without altering its styles",
+  "Update the characters of an existing text layer. Emojis are strictly sanitized and proportional leading and tracking are automatically recalibrated.",
   {
     nodeId: z.string().describe("Text node ID"),
-    text: z.string().describe("New text content"),
+    text: z.string().describe("New text content (must NOT contain emojis)"),
   },
   async (params) => {
     const result = await bridge.sendCommand("set_text_content", params);
@@ -458,12 +458,12 @@ server.tool(
 // Tool: Declarative UI Screen Generator
 server.tool(
   "generate_ui_tree",
-  "Generate a complete UI screen or component hierarchy in a single atomic pass from a structured JSON specification. Automatically handles AutoLayout, typography preloading, colors, and tagging for prototyping.",
+  "Generate a complete UI screen or component hierarchy in a single atomic pass from a structured JSON specification. Enforces enterprise UI/UX & HCI standards: strictly disallows emojis (use 'create_svg_icon' for icons), snaps spacing to 8pt grid, enforces minimum 44px interactive touch targets per Apple HIG / WCAG (Fitts's Law), and applies calibrated typography leading and tracking.",
   {
     spec: z
       .record(z.any())
       .describe(
-        "Declarative ScreenSpec object containing name, preset ('iPhone 16', 'Desktop', etc.), fill, padding, spacing, and children array with typed elements ('frame', 'card', 'button', 'text', 'divider', 'spacer') and optional 'tag' identifiers for interaction linking."
+        "Declarative ScreenSpec object containing name, preset ('iPhone 16', 'Desktop', etc.), fill, padding, spacing, and children array with typed elements ('frame', 'card', 'button', 'text', 'divider', 'spacer') and optional 'tag' identifiers for interaction linking. Note: Do NOT use emojis in buttons or text."
       ),
   },
   async ({ spec }) => {
@@ -838,6 +838,31 @@ server.tool(
   }
 );
 
+// Tool: Lint Design Compliance (HCI & UI/UX Guardian)
+server.tool(
+  "lint_design_compliance",
+  "Audit and score any screen or the active canvas page against enterprise UI/UX and HCI compliance standards (Fitts's Law 44px touch targets, 8pt grid spacing consistency, proportional typography leading, and zero emojis)",
+  {
+    nodeId: z
+      .string()
+      .optional()
+      .describe(
+        "Optional Frame or Component node ID to audit. If omitted, audits the entire active canvas page."
+      ),
+  },
+  async (params) => {
+    const result = await bridge.sendCommand("lint_design_compliance", params);
+    return {
+      content: [
+        {
+          type: "text",
+          text: JSON.stringify(result, null, 2),
+        },
+      ],
+    };
+  }
+);
+
 // ==========================================
 // Figma REST API Tools (Headless / Cloud Access)
 // ==========================================
@@ -1097,10 +1122,15 @@ Theme aesthetic: ${theme || "Modern Clean Light"}.
 
 Execute the following design process:
 1. Call 'get_document_tokens' to inspect available color and text styles in the file.
-2. For each screen in the journey, use 'generate_ui_tree' with appropriate device presets ('iPhone 16' or 'Desktop') to build production-grade AutoLayout components. Ensure interactive elements (buttons, inputs, cards) have semantic 'tag' identifiers (e.g. 'login_btn', 'continue_btn', 'home_card').
+2. For each screen in the journey, use 'generate_ui_tree' with appropriate device presets ('iPhone 16' or 'Desktop') to build production-grade AutoLayout components.
+   - STRICT CONSTRAINT: NEVER use emojis in buttons, titles, or body copy. Use 'create_svg_icon' for icons.
+   - Spacing: Strictly adhere to the 8pt grid (4, 8, 12, 16, 20, 24, 32, 40, 48px).
+   - HCI Ergonomics: Ensure interactive elements (buttons, inputs, cards) have minimum 44px touch targets (Fitts's Law / Apple HIG).
+   - Tagging: Ensure semantic 'tag' identifiers are assigned (e.g. 'login_btn', 'continue_btn', 'home_card').
 3. Mark the initial screen as a flow entrypoint using 'set_flow_starting_point'.
 4. Wire interactive transitions between screens using 'batch_link_prototype' or 'set_prototype_interaction' with 'SMART_ANIMATE' or 'SLIDE_IN'.
-5. Summarize the created screens, interactive journey, and verification details for the user.`,
+5. Call 'lint_design_compliance' to verify zero HCI or typography violations.
+6. Summarize the created screens, interactive journey, and verification details for the user.`,
           },
         },
       ],
@@ -1140,7 +1170,7 @@ Step 4: Audit the resulting prototype using 'get_prototype_connections' and repo
 // Prompt: Audit UX Design
 server.prompt(
   "audit_ux_design",
-  "Instruct the AI assistant to perform a UX design, spacing, and touch target audit on screens",
+  "Instruct the AI assistant to perform an automated HCI, typography, and UX design compliance audit",
   {
     screenName: z.string().optional().describe("Optional screen name to audit"),
   },
@@ -1151,16 +1181,16 @@ server.prompt(
           role: "user",
           content: {
             type: "text",
-            text: `You are a UX & Accessibility Auditor.
-Perform a thorough UX audit on ${screenName ? `the screen "${screenName}"` : "the screens on the current page"}.
+            text: `You are an expert UX & Accessibility Auditor.
+Perform a thorough UX and HCI compliance audit on ${screenName ? `the screen "${screenName}"` : "the active design page"}.
 
-1. Call 'get_design_context' to inspect the structure and layout settings.
-2. Check for:
-   - Touch targets: Ensure interactive elements are at least 44x44px.
-   - Hierarchy: Proper heading-to-body size scale and contrast.
-   - Spacing: Consistent padding and gap multiples (e.g. 4px, 8px, 16px, 24px).
-   - Alignment: Proper AutoLayout constraints.
-3. Provide an actionable report with specific recommendations and propose fixes using 'update_node' or 'set_autolayout'.`,
+1. Call 'lint_design_compliance' to get an automated compliance score and list of violations:
+   - Touch targets: Identify any interactive elements < 44x44px (Apple HIG / Fitts's Law).
+   - Emojis: Flag any text nodes using emojis instead of vector SVG icons.
+   - Spacing: Identify any padding or gap settings violating the 4pt/8pt grid scale.
+   - Typography: Check for uncalibrated AUTO line-height or poor typographic scale.
+2. Call 'get_design_context' to review the overall artboard hierarchy.
+3. Provide an executive summary of the score, list specific node IDs requiring attention, and propose atomic fixes using 'update_node' or 'set_autolayout'.`,
           },
         },
       ],

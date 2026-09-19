@@ -1,5 +1,6 @@
 import { createSolidPaint, hexToFigmaColor } from "../helpers/color";
 import { ensureFontLoaded } from "../helpers/font";
+import { sanitizeUiText, applyIntelligentTypography } from "../helpers/typography";
 import { applyImageOrColor } from "./declarative";
 
 export async function handleCreateFrame(params: {
@@ -117,10 +118,15 @@ export async function handleCreateText(params: {
     params.fontWeight || "Regular"
   );
 
+  const { text: cleanText, emojisRemoved } = sanitizeUiText(params.text);
+
   const textNode = figma.createText();
   textNode.fontName = fontName;
   textNode.fontSize = params.fontSize || 16;
-  textNode.characters = params.text;
+  textNode.characters = cleanText;
+
+  // Apply intelligent typography: calibrated leading & optical tracking
+  applyIntelligentTypography(textNode, params.fontSize);
 
   if (params.fill) {
     textNode.fills = [createSolidPaint(params.fill)];
@@ -151,6 +157,9 @@ export async function handleCreateText(params: {
     type: textNode.type,
     characters: textNode.characters,
     fontSize: textNode.fontSize,
+    lineHeight: textNode.lineHeight,
+    letterSpacing: textNode.letterSpacing,
+    emojisSanitized: emojisRemoved,
     x: textNode.x,
     y: textNode.y,
     width: textNode.width,
@@ -512,10 +521,18 @@ export async function handleSetTextContent(params: {
     await ensureFontLoaded("Inter", "Regular");
   }
 
-  textNode.characters = params.text;
+  const { text: cleanText, emojisRemoved } = sanitizeUiText(params.text);
+  textNode.characters = cleanText;
+
+  // Re-calibrate leading and tracking for updated content
+  applyIntelligentTypography(textNode);
+
   return {
     id: textNode.id,
     characters: textNode.characters,
+    lineHeight: textNode.lineHeight,
+    letterSpacing: textNode.letterSpacing,
+    emojisSanitized: emojisRemoved,
   };
 }
 

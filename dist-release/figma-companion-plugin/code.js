@@ -81,6 +81,24 @@
       opacity
     };
   }
+  function getRelativeLuminance(rgb) {
+    const transform = (c) => {
+      return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
+    };
+    const r = transform(rgb.r);
+    const g = transform(rgb.g);
+    const b = transform(rgb.b);
+    return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+  }
+  function getContrastRatio(hex1, hex2) {
+    const color1 = hexToFigmaColor(hex1).rgb;
+    const color2 = hexToFigmaColor(hex2).rgb;
+    const lum1 = getRelativeLuminance(color1);
+    const lum2 = getRelativeLuminance(color2);
+    const lighter = Math.max(lum1, lum2);
+    const darker = Math.min(lum1, lum2);
+    return (lighter + 0.05) / (darker + 0.05);
+  }
 
   // src/helpers/font.ts
   var loadedFonts = /* @__PURE__ */ new Set();
@@ -103,6 +121,59 @@
         return fallback;
       }
     });
+  }
+
+  // src/helpers/typography.ts
+  var EMOJI_REGEX = /[\u{1F300}-\u{1FAD6}\u{1F600}-\u{1F64F}\u{1F680}-\u{1F6FF}\u{2600}-\u{27BF}\u{FE00}-\u{FE0F}\u{1F900}-\u{1F9FF}\u{1F1E6}-\u{1F1FF}\u{200D}\u{20E3}\u{E0020}-\u{E007F}]/gu;
+  function sanitizeUiText(rawText) {
+    if (!rawText) return { text: "", emojisRemoved: false };
+    const hasEmoji = EMOJI_REGEX.test(rawText);
+    EMOJI_REGEX.lastIndex = 0;
+    if (!hasEmoji) {
+      return { text: rawText, emojisRemoved: false };
+    }
+    const cleaned = rawText.replace(EMOJI_REGEX, "").replace(/\s{2,}/g, " ").trim();
+    return {
+      text: cleaned,
+      emojisRemoved: true
+    };
+  }
+  function calculateTypographyProperties(fontSize, isUppercase = false) {
+    const size = Math.max(8, fontSize);
+    if (size >= 32) {
+      return {
+        lineHeight: Math.round(size * 1.15),
+        letterSpacing: -1.5
+      };
+    }
+    if (size >= 24) {
+      return {
+        lineHeight: Math.round(size * 1.25),
+        letterSpacing: -1
+      };
+    }
+    if (size >= 18) {
+      return {
+        lineHeight: Math.round(size * 1.35),
+        letterSpacing: -0.5
+      };
+    }
+    if (size >= 14) {
+      return {
+        lineHeight: Math.round(size * 1.5),
+        letterSpacing: isUppercase ? 1 : 0
+      };
+    }
+    return {
+      lineHeight: Math.round(size * 1.4),
+      letterSpacing: isUppercase ? 2.5 : 1.2
+    };
+  }
+  function applyIntelligentTypography(textNode, fontSize, isUppercase) {
+    const size = fontSize != null ? fontSize : typeof textNode.fontSize === "number" ? textNode.fontSize : 16;
+    const { lineHeight, letterSpacing } = calculateTypographyProperties(size, isUppercase);
+    textNode.lineHeight = { value: lineHeight, unit: "PIXELS" };
+    textNode.letterSpacing = { value: letterSpacing, unit: "PERCENT" };
   }
 
   // src/handlers/declarative.ts
@@ -195,7 +266,7 @@
   }
   function buildNode(spec, parent, tagRegistry) {
     return __async(this, null, function* () {
-      var _a, _b, _c, _d, _e, _f;
+      var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j;
       let createdCount = 1;
       switch (spec.type) {
         case "frame":
@@ -248,12 +319,29 @@
           btn.primaryAxisAlignItems = "CENTER";
           btn.counterAxisAlignItems = "CENTER";
           btn.itemSpacing = 8;
-          applyPadding(btn, (_c = spec.padding) != null ? _c : { top: 12, bottom: 12, left: 24, right: 24 });
-          btn.cornerRadius = (_d = spec.cornerRadius) != null ? _d : 8;
-          btn.fills = [createSolidPaint(spec.fill || "#2563EB")];
+          let padding = (_c = spec.padding) != null ? _c : { top: 12, bottom: 12, left: 24, right: 24 };
+          if (typeof padding === "number") {
+            padding = {
+              top: Math.max(10, padding),
+              bottom: Math.max(10, padding),
+              left: Math.max(16, padding),
+              right: Math.max(16, padding)
+            };
+          } else {
+            padding = {
+              top: Math.max(10, (_d = padding.top) != null ? _d : 12),
+              bottom: Math.max(10, (_e = padding.bottom) != null ? _e : 12),
+              left: Math.max(16, (_f = padding.left) != null ? _f : 24),
+              right: Math.max(16, (_g = padding.right) != null ? _g : 24)
+            };
+          }
+          applyPadding(btn, padding);
+          btn.cornerRadius = (_h = spec.cornerRadius) != null ? _h : 8;
+          const btnFill = spec.fill || "#2563EB";
+          btn.fills = [createSolidPaint(btnFill)];
           if (spec.stroke) {
             btn.strokes = [createSolidPaint(spec.stroke.color)];
-            btn.strokeWeight = (_e = spec.stroke.width) != null ? _e : 1;
+            btn.strokeWeight = (_i = spec.stroke.width) != null ? _i : 1;
           }
           const font = yield ensureFontLoaded(
             spec.fontFamily || "Inter",
@@ -261,13 +349,23 @@
           );
           const label = figma.createText();
           label.fontName = font;
-          label.fontSize = spec.fontSize || 15;
-          label.characters = spec.text || "Click Me";
-          label.fills = [createSolidPaint(spec.textColor || "#FFFFFF")];
+          const btnFontSize = spec.fontSize || 15;
+          label.fontSize = btnFontSize;
+          const { text: cleanLabel } = sanitizeUiText(spec.text || "Click Me");
+          label.characters = cleanLabel;
+          let textColor = spec.textColor || "#FFFFFF";
+          if (spec.textColor && spec.fill) {
+            const ratio = getContrastRatio(spec.textColor, btnFill);
+            if (ratio < 3) {
+              textColor = getContrastRatio("#FFFFFF", btnFill) > getContrastRatio("#111827", btnFill) ? "#FFFFFF" : "#111827";
+            }
+          }
+          label.fills = [createSolidPaint(textColor)];
+          applyIntelligentTypography(label, btnFontSize);
           btn.appendChild(label);
           parent.appendChild(btn);
           if (typeof spec.width === "number") {
-            btn.resize(spec.width, btn.height);
+            btn.resize(Math.max(44, spec.width), btn.height);
             btn.primaryAxisSizingMode = "FIXED";
           } else if (spec.width === "fill") {
             btn.layoutAlign = "STRETCH";
@@ -275,7 +373,8 @@
             btn.primaryAxisSizingMode = "AUTO";
           }
           if (typeof spec.height === "number") {
-            btn.resize(btn.width, spec.height);
+            const enforcedHeight = Math.max(44, spec.height);
+            btn.resize(btn.width, enforcedHeight);
             btn.counterAxisSizingMode = "FIXED";
           } else {
             btn.counterAxisSizingMode = "AUTO";
@@ -290,10 +389,13 @@
           );
           const textNode = figma.createText();
           textNode.fontName = font;
-          textNode.fontSize = spec.fontSize || 15;
-          textNode.characters = spec.text || "";
+          const fontSize = spec.fontSize || 15;
+          textNode.fontSize = fontSize;
+          const { text: cleanText } = sanitizeUiText(spec.text || "");
+          textNode.characters = cleanText;
+          applyIntelligentTypography(textNode, fontSize);
           textNode.fills = [createSolidPaint(spec.textColor || spec.fill || "#111827")];
-          textNode.name = spec.name || (spec.text ? spec.text.slice(0, 20) : "Text");
+          textNode.name = spec.name || (cleanText ? cleanText.slice(0, 20) : "Text");
           parent.appendChild(textNode);
           if (spec.width === "fill") {
             if (parent.layoutMode === "VERTICAL") {
@@ -326,7 +428,7 @@
           if (spec.cornerRadius) rect.cornerRadius = spec.cornerRadius;
           if (spec.stroke) {
             rect.strokes = [createSolidPaint(spec.stroke.color)];
-            rect.strokeWeight = (_f = spec.stroke.width) != null ? _f : 1;
+            rect.strokeWeight = (_j = spec.stroke.width) != null ? _j : 1;
           }
           parent.appendChild(rect);
           applyLayoutSizing(rect, spec.width, spec.height);
@@ -506,10 +608,12 @@
         params.fontFamily || "Inter",
         params.fontWeight || "Regular"
       );
+      const { text: cleanText, emojisRemoved } = sanitizeUiText(params.text);
       const textNode = figma.createText();
       textNode.fontName = fontName;
       textNode.fontSize = params.fontSize || 16;
-      textNode.characters = params.text;
+      textNode.characters = cleanText;
+      applyIntelligentTypography(textNode, params.fontSize);
       if (params.fill) {
         textNode.fills = [createSolidPaint(params.fill)];
       }
@@ -535,6 +639,9 @@
         type: textNode.type,
         characters: textNode.characters,
         fontSize: textNode.fontSize,
+        lineHeight: textNode.lineHeight,
+        letterSpacing: textNode.letterSpacing,
+        emojisSanitized: emojisRemoved,
         x: textNode.x,
         y: textNode.y,
         width: textNode.width,
@@ -813,10 +920,15 @@
       } else {
         yield ensureFontLoaded("Inter", "Regular");
       }
-      textNode.characters = params.text;
+      const { text: cleanText, emojisRemoved } = sanitizeUiText(params.text);
+      textNode.characters = cleanText;
+      applyIntelligentTypography(textNode);
       return {
         id: textNode.id,
-        characters: textNode.characters
+        characters: textNode.characters,
+        lineHeight: textNode.lineHeight,
+        letterSpacing: textNode.letterSpacing,
+        emojisSanitized: emojisRemoved
       };
     });
   }
@@ -1437,6 +1549,117 @@
     });
   }
 
+  // src/handlers/linter.ts
+  function handleLintDesignCompliance(params) {
+    return __async(this, null, function* () {
+      let rootNode = null;
+      if (params.nodeId) {
+        rootNode = figma.getNodeById(params.nodeId);
+        if (!rootNode) {
+          throw new Error(`Target node '${params.nodeId}' not found.`);
+        }
+      } else {
+        rootNode = figma.currentPage;
+      }
+      const violations = [];
+      let nodesAudited = 0;
+      function auditNode(node) {
+        nodesAudited++;
+        if (node.type === "TEXT") {
+          const textNode = node;
+          const content = textNode.characters || "";
+          EMOJI_REGEX.lastIndex = 0;
+          if (EMOJI_REGEX.test(content)) {
+            violations.push({
+              category: "EMOJI",
+              severity: "ERROR",
+              nodeId: textNode.id,
+              nodeName: textNode.name,
+              message: `Text contains emoji icons: "${content.slice(0, 35)}..."`,
+              recommendation: "Remove emojis and use the 'create_svg_icon' tool with vector SVG paths instead."
+            });
+          }
+          if (textNode.lineHeight && textNode.lineHeight.unit === "AUTO") {
+            violations.push({
+              category: "TYPOGRAPHY",
+              severity: "WARNING",
+              nodeId: textNode.id,
+              nodeName: textNode.name,
+              message: `Uncalibrated line-height (AUTO) detected on '${textNode.name}'.`,
+              recommendation: "Set explicit proportional leading (1.15x for display headers, 1.5x for body text)."
+            });
+          }
+        }
+        if (node.type === "FRAME" || node.type === "INSTANCE" || node.type === "COMPONENT") {
+          const frame = node;
+          const lowerName = frame.name.toLowerCase();
+          const isInteractive = lowerName.includes("button") || lowerName.includes("btn") || lowerName.includes("cta") || lowerName.includes("tap") || lowerName.includes("input") || lowerName.includes("icon") || "reactions" in frame && frame.reactions.length > 0;
+          if (isInteractive) {
+            if (frame.width < 44 || frame.height < 44) {
+              violations.push({
+                category: "TOUCH_TARGET",
+                severity: "ERROR",
+                nodeId: frame.id,
+                nodeName: frame.name,
+                message: `Interactive element size is ${Math.round(frame.width)}x${Math.round(
+                  frame.height
+                )}px, below the 44x44px minimum touch target.`,
+                recommendation: "Increase padding or height to >= 44px to comply with Apple HIG, Google Material, and WCAG 2.1 touch ergonomics (Fitts's Law)."
+              });
+            }
+          }
+          if (frame.layoutMode && frame.layoutMode !== "NONE") {
+            const checkGrid = (val, label) => {
+              if (val > 0 && val % 4 !== 0) {
+                violations.push({
+                  category: "GRID_SPACING",
+                  severity: "WARNING",
+                  nodeId: frame.id,
+                  nodeName: frame.name,
+                  message: `${label} is ${val}px, which does not conform to the 4pt/8pt spacing scale.`,
+                  recommendation: `Snap to the nearest clean 4pt/8pt grid increment (${Math.round(
+                    val / 4
+                  ) * 4}px).`
+                });
+              }
+            };
+            checkGrid(frame.itemSpacing, "itemSpacing (gap)");
+            checkGrid(frame.paddingTop, "paddingTop");
+            checkGrid(frame.paddingBottom, "paddingBottom");
+            checkGrid(frame.paddingLeft, "paddingLeft");
+            checkGrid(frame.paddingRight, "paddingRight");
+          }
+        }
+        if ("children" in node) {
+          for (const child of node.children) {
+            auditNode(child);
+          }
+        }
+      }
+      auditNode(rootNode);
+      const errorCount = violations.filter((v) => v.severity === "ERROR").length;
+      const warningCount = violations.filter((v) => v.severity === "WARNING").length;
+      const penalty = errorCount * 10 + warningCount * 3;
+      const complianceScore = Math.max(0, 100 - penalty);
+      let grade = "A";
+      if (complianceScore < 60) grade = "F";
+      else if (complianceScore < 75) grade = "C";
+      else if (complianceScore < 90) grade = "B";
+      return {
+        targetId: rootNode.id,
+        targetName: rootNode.name,
+        complianceScore,
+        grade,
+        nodesAudited,
+        violationsCount: violations.length,
+        errorsCount: errorCount,
+        warningsCount: warningCount,
+        violations,
+        summary: complianceScore >= 90 ? "Excellent design quality! The interface conforms to enterprise typography, HCI touch targets, and the 8pt grid system." : `Design quality score: ${complianceScore} (${grade}). ${violations.length} HCI/design issues found. Review recommendations to achieve enterprise polish.`
+      };
+    });
+  }
+
   // src/code.ts
   figma.showUI(__html__, { width: 300, height: 280, themeColors: true });
   function sendHandshake() {
@@ -1609,6 +1832,10 @@
         }
         case "focus_viewport": {
           result = yield handleFocusViewport(params);
+          break;
+        }
+        case "lint_design_compliance": {
+          result = yield handleLintDesignCompliance(params);
           break;
         }
         default:

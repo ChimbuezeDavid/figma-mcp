@@ -1,5 +1,6 @@
-import { createSolidPaint } from "../helpers/color";
+import { createSolidPaint, getContrastRatio } from "../helpers/color";
 import { ensureFontLoaded } from "../helpers/font";
+import { sanitizeUiText, applyIntelligentTypography } from "../helpers/typography";
 
 export interface UINodeSpec {
   type: "frame" | "rectangle" | "text" | "button" | "card" | "divider" | "spacer";
@@ -235,33 +236,71 @@ async function buildNode(
       btn.primaryAxisAlignItems = "CENTER";
       btn.counterAxisAlignItems = "CENTER";
       btn.itemSpacing = 8;
-      applyPadding(btn, spec.padding ?? { top: 12, bottom: 12, left: 24, right: 24 });
+
+      // HCI / Apple HIG Guardian: Minimum vertical padding 12px, horizontal padding 20-24px
+      let padding = spec.padding ?? { top: 12, bottom: 12, left: 24, right: 24 };
+      if (typeof padding === "number") {
+        padding = {
+          top: Math.max(10, padding),
+          bottom: Math.max(10, padding),
+          left: Math.max(16, padding),
+          right: Math.max(16, padding),
+        };
+      } else {
+        padding = {
+          top: Math.max(10, padding.top ?? 12),
+          bottom: Math.max(10, padding.bottom ?? 12),
+          left: Math.max(16, padding.left ?? 24),
+          right: Math.max(16, padding.right ?? 24),
+        };
+      }
+      applyPadding(btn, padding);
 
       btn.cornerRadius = spec.cornerRadius ?? 8;
-      btn.fills = [createSolidPaint(spec.fill || "#2563EB")];
+      const btnFill = spec.fill || "#2563EB";
+      btn.fills = [createSolidPaint(btnFill)];
 
       if (spec.stroke) {
         btn.strokes = [createSolidPaint(spec.stroke.color)];
         btn.strokeWeight = spec.stroke.width ?? 1;
       }
 
-      // Add label text inside button
+      // Add label text inside button with Emoji Sanitization & Typography
       const font = await ensureFontLoaded(
         spec.fontFamily || "Inter",
         spec.fontWeight || "SemiBold"
       );
       const label = figma.createText();
       label.fontName = font;
-      label.fontSize = spec.fontSize || 15;
-      label.characters = spec.text || "Click Me";
-      label.fills = [createSolidPaint(spec.textColor || "#FFFFFF")];
+      const btnFontSize = spec.fontSize || 15;
+      label.fontSize = btnFontSize;
+
+      // Strip emojis
+      const { text: cleanLabel } = sanitizeUiText(spec.text || "Click Me");
+      label.characters = cleanLabel;
+
+      // Auto-contrast guardian: ensure text is readable against button background
+      let textColor = spec.textColor || "#FFFFFF";
+      if (spec.textColor && spec.fill) {
+        const ratio = getContrastRatio(spec.textColor, btnFill);
+        if (ratio < 3.0) {
+          textColor =
+            getContrastRatio("#FFFFFF", btnFill) > getContrastRatio("#111827", btnFill)
+              ? "#FFFFFF"
+              : "#111827";
+        }
+      }
+      label.fills = [createSolidPaint(textColor)];
+
+      // Apply intelligent typography to button label
+      applyIntelligentTypography(label, btnFontSize);
 
       btn.appendChild(label);
       parent.appendChild(btn);
 
-      // Sizing
+      // Sizing with HCI touch target enforcement (min 44px)
       if (typeof spec.width === "number") {
-        btn.resize(spec.width, btn.height);
+        btn.resize(Math.max(44, spec.width), btn.height);
         btn.primaryAxisSizingMode = "FIXED";
       } else if (spec.width === "fill") {
         btn.layoutAlign = "STRETCH";
@@ -270,7 +309,9 @@ async function buildNode(
       }
 
       if (typeof spec.height === "number") {
-        btn.resize(btn.width, spec.height);
+        // Enforce Apple HIG / WCAG minimum touch target of 44px
+        const enforcedHeight = Math.max(44, spec.height);
+        btn.resize(btn.width, enforcedHeight);
         btn.counterAxisSizingMode = "FIXED";
       } else {
         btn.counterAxisSizingMode = "AUTO";
@@ -287,10 +328,18 @@ async function buildNode(
       );
       const textNode = figma.createText();
       textNode.fontName = font;
-      textNode.fontSize = spec.fontSize || 15;
-      textNode.characters = spec.text || "";
+      const fontSize = spec.fontSize || 15;
+      textNode.fontSize = fontSize;
+
+      // Strip emojis from text
+      const { text: cleanText } = sanitizeUiText(spec.text || "");
+      textNode.characters = cleanText;
+
+      // Apply intelligent leading and optical tracking
+      applyIntelligentTypography(textNode, fontSize);
+
       textNode.fills = [createSolidPaint(spec.textColor || spec.fill || "#111827")];
-      textNode.name = spec.name || (spec.text ? spec.text.slice(0, 20) : "Text");
+      textNode.name = spec.name || (cleanText ? cleanText.slice(0, 20) : "Text");
 
       parent.appendChild(textNode);
 

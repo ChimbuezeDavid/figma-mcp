@@ -32,6 +32,7 @@ import {
   handleBatchLinkPrototype,
   handleSetOverlayInteraction,
 } from "./handlers/prototyping";
+import { handleLintDesignCompliance } from "./handlers/linter";
 
 figma.showUI(__html__, { width: 300, height: 280, themeColors: true });
 
@@ -249,6 +250,11 @@ figma.ui.onmessage = async (msg: {
 
       case "focus_viewport": {
         result = await handleFocusViewport(params as any);
+        break;
+      }
+
+      case "lint_design_compliance": {
+        result = await handleLintDesignCompliance(params as any);
         break;
       }
 
