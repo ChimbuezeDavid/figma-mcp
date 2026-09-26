@@ -33,6 +33,13 @@ import {
   handleSetOverlayInteraction,
 } from "./handlers/prototyping";
 import { handleLintDesignCompliance } from "./handlers/linter";
+import {
+  handleGenerateStateMatrix,
+  handleAuditUXHeuristics,
+  handleValidateUserJourney,
+  handleGenerateInteractiveVariants,
+  handleLintUXMicrocopy,
+} from "./handlers/ux";
 
 figma.showUI(__html__, { width: 300, height: 280, themeColors: true });
 
@@ -255,6 +262,31 @@ figma.ui.onmessage = async (msg: {
 
       case "lint_design_compliance": {
         result = await handleLintDesignCompliance(params as any);
+        break;
+      }
+
+      case "generate_state_matrix": {
+        result = await handleGenerateStateMatrix(params as any);
+        break;
+      }
+
+      case "audit_ux_heuristics": {
+        result = await handleAuditUXHeuristics(params as any);
+        break;
+      }
+
+      case "validate_user_journey": {
+        result = await handleValidateUserJourney();
+        break;
+      }
+
+      case "generate_interactive_variants": {
+        result = await handleGenerateInteractiveVariants(params as any);
+        break;
+      }
+
+      case "lint_ux_microcopy": {
+        result = await handleLintUXMicrocopy(params as any);
         break;
       }
 

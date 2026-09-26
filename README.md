@@ -100,19 +100,30 @@ npm run dev:server
 - **8-Point Spacing Grid**: Validates and snaps paddings and gaps to clean 4pt/8pt increments ($4, 8, 12, 16, 20, 24, 32, 40, 48\text{px}$).
 - **Color Contrast Guardian (WCAG 2.1 AA)**: Computes relative luminance and contrast ratios ($> 4.5:1$ for body, $> 3:1$ for headers) to prevent low-contrast text combinations.
 
-### 3. Observability & Audit Trails (Enterprise)
+### 3. UX Intelligence & Cognitive Architecture (New)
+- **`generate_state_matrix`**: Generates the **5 Essential States of UI** (*Ideal, Empty Onboarding, Loading Skeleton Shimmer, Empathetic Error with 1-click retry, and Partial/Boundary Stress Test*) in a single call, eliminating the "Happy-Path Only" failure mode.
+- **`audit_ux_heuristics`**: Evaluates screens against empirical human cognitive psychology:
+  - **Hick's Law**: Flags choice overload and competing primary CTAs ($T = b \log_2(n+1)$).
+  - **Fitts's Law**: Checks touch ergonomics and prevents destructive buttons from sitting dangerously close to primary progression actions.
+  - **Miller's Law**: Flags visual chunking violations where $> 7$ inputs or items are presented without grouping.
+  - **Jakob's Law**: Audits standard mental models and convention placement.
+- **`validate_user_journey`**: Traverses prototype interaction noodles to detect **orphan screens** (unlinked artboards), **dead-end screens** (trapped users without back or exit affordance), and **unprotected destructive actions** (lacking confirmation dialogs).
+- **`generate_interactive_variants`**: Creates production-ready Figma Component Sets with **Default, Hover, Pressed, Focused (WCAG 2.4.7 accessible focus ring), and Disabled** states, pre-wired with `whileHover` and `whilePress` Smart Animate transitions.
+- **`lint_ux_microcopy`**: Audits UX writing anti-patterns (Lorem Ipsum, ambiguous CTAs like *"Submit"*, robotic blaming errors like *"Invalid input"*), providing empathetic, high-converting copy recommendations.
+
+### 4. Observability & Audit Trails (Enterprise)
 - **Structured JSON Logging**: Powered by `pino` directed strictly to `stderr` (preserving STDIO JSON-RPC integrity). Configurable log level via `LOG_LEVEL=info|debug|warn`.
 - **Request Correlation**: Each tool invocation is assigned an 8-character `requestId` tracked from receipt through plugin completion.
 - **Audit Logging**: All mutating canvas operations (`create_frame`, `set_prototype_interaction`, `delete_nodes`, `generate_ui_tree`, etc.) record an explicit structured `AUDIT` record with file, page, and mutation metadata.
 - **Actionable Error Recovery**: Failed node lookups return a helpful recovery payload listing the available screens/frames on the active page so agents can self-heal.
 
-### 3. Declarative Screen Generation (Step 4)
+### 5. Declarative Screen Generation (Step 4)
 - **`generate_ui_tree`**: Generates full screens with AutoLayout, typography, colors, and tagged interactive elements in a single atomic call:
   - **Presets**: `iPhone 16`, `iPhone 16 Pro Max`, `Android`, `Desktop`, `Tablet`.
   - **Elements**: `frame`, `card`, `button`, `text`, `divider`, `spacer`.
   - **Tag Registry**: Assigns tags (e.g. `tag: "signup_btn"`) and returns a map of `{ [tag]: nodeId }` for instant prototyping.
 
-### 4. Interactive Prototyping Engine (Step 5)
+### 6. Interactive Prototyping Engine (Step 5)
 - **`set_prototype_interaction`**: Wires interactive prototype transitions between elements:
   - **Triggers**: `ON_CLICK`, `ON_HOVER`, `ON_PRESS`, `AFTER_TIMEOUT`.
   - **Navigations**: `NAVIGATE`, `OVERLAY`, `SWAP`, `BACK`, `CLOSE`.
@@ -121,7 +132,7 @@ npm run dev:server
 - **`get_prototype_connections`**: Audits all flow starting points and prototype connections on the page.
 - **`batch_link_prototype`**: Wires multiple screen transitions across a user journey in one call.
 
-### 5. Canvas Primitives, Components & Polish
+### 7. Canvas Primitives, Components & Polish
 - **`create_frame`**: Creates container frames or artboards.
 - **`create_rectangle`**: Creates shapes, cards, or placeholders.
 - **`create_ellipse`**: Creates circular/elliptical shapes (ideal for user avatars, notification badges, circular action buttons, and status indicator dots).

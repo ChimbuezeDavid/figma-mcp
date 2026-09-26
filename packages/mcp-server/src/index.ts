@@ -864,6 +864,124 @@ server.tool(
 );
 
 // ==========================================
+// UX Intelligence & Cognitive Architecture Tools
+// ==========================================
+
+// Tool: Generate State Matrix (The 5 States of UI)
+server.tool(
+  "generate_state_matrix",
+  "Generate the complete 5 States of UI (Ideal, Empty with onboarding CTA, Loading/Skeleton shimmer, Empathetic Error with 1-click retry, and Partial/Boundary stress-test) as a Figma Section or Component Set",
+  {
+    title: z.string().describe("Component or screen title (e.g. 'Payment Methods', 'Recent Invoices', 'User Profile')"),
+    componentType: z.enum(["card", "screen", "list", "form", "button"]).optional().describe("Component archetype (default: 'card')"),
+    device: z.enum(["mobile", "desktop"]).optional().describe("Target device form factor (default: 'mobile')"),
+    theme: z.enum(["light", "dark"]).optional().describe("Color aesthetic theme (default: 'light')"),
+    x: z.number().optional().describe("X position on canvas"),
+    y: z.number().optional().describe("Y position on canvas"),
+  },
+  async (params) => {
+    const result = await bridge.sendCommand("generate_state_matrix", params);
+    return {
+      content: [
+        {
+          type: "text",
+          text: JSON.stringify(result, null, 2),
+        },
+      ],
+    };
+  }
+);
+
+// Tool: Audit UX Heuristics & Cognitive Load
+server.tool(
+  "audit_ux_heuristics",
+  "Audit visual design and interaction architecture against empirical cognitive psychology and Laws of UX (Hick's Law choice overload, Fitts's Law touch target reach & destructive action proximity, Miller's Law chunking, and Jakob's Law conventions)",
+  {
+    nodeId: z
+      .string()
+      .optional()
+      .describe("Optional frame or screen node ID to audit. If omitted, audits current selection or page."),
+  },
+  async (params) => {
+    const result = await bridge.sendCommand("audit_ux_heuristics", params);
+    return {
+      content: [
+        {
+          type: "text",
+          text: JSON.stringify(result, null, 2),
+        },
+      ],
+    };
+  }
+);
+
+// Tool: Validate User Journey Continuum
+server.tool(
+  "validate_user_journey",
+  "Verify user journey continuum and prototype interaction completeness across canvas artboards, flagging orphan screens, dead-end traps, and unprotected destructive actions without confirmation safeguards",
+  {},
+  async () => {
+    const result = await bridge.sendCommand("validate_user_journey", {});
+    return {
+      content: [
+        {
+          type: "text",
+          text: JSON.stringify(result, null, 2),
+        },
+      ],
+    };
+  }
+);
+
+// Tool: Generate Interactive Variants & Affordance Set
+server.tool(
+  "generate_interactive_variants",
+  "Generate a complete interactive Component Set with Default, Hover, Pressed, Focused (WCAG 2.4.7 accessible focus ring), and Disabled states with pre-wired prototype Smart Animate transitions",
+  {
+    element: z.enum(["button", "input", "toggle", "tab", "card"]).optional().describe("Element type to generate (default: 'button')"),
+    label: z.string().optional().describe("Element label text (default: 'Confirm & Continue')"),
+    size: z.enum(["small", "medium", "large"]).optional().describe("Size scale (default: 'medium')"),
+    variantStyle: z.enum(["primary", "secondary", "destructive", "outline"]).optional().describe("Visual intent style (default: 'primary')"),
+    x: z.number().optional().describe("X coordinate on canvas"),
+    y: z.number().optional().describe("Y coordinate on canvas"),
+  },
+  async (params) => {
+    const result = await bridge.sendCommand("generate_interactive_variants", params);
+    return {
+      content: [
+        {
+          type: "text",
+          text: JSON.stringify(result, null, 2),
+        },
+      ],
+    };
+  }
+);
+
+// Tool: Lint UX Microcopy & Empathetic Writing
+server.tool(
+  "lint_ux_microcopy",
+  "Audit text copy across screens for UX writing anti-patterns (Lorem Ipsum placeholders, ambiguous/lazy CTAs like 'Submit', robotic blaming error messages, and cognitive strain all-caps text), recommending empathetic high-converting alternatives",
+  {
+    nodeId: z
+      .string()
+      .optional()
+      .describe("Optional node ID to audit. If omitted, audits current selection or active page."),
+  },
+  async (params) => {
+    const result = await bridge.sendCommand("lint_ux_microcopy", params);
+    return {
+      content: [
+        {
+          type: "text",
+          text: JSON.stringify(result, null, 2),
+        },
+      ],
+    };
+  }
+);
+
+// ==========================================
 // Figma REST API Tools (Headless / Cloud Access)
 // ==========================================
 
@@ -1191,6 +1309,37 @@ Perform a thorough UX and HCI compliance audit on ${screenName ? `the screen "${
    - Typography: Check for uncalibrated AUTO line-height or poor typographic scale.
 2. Call 'get_design_context' to review the overall artboard hierarchy.
 3. Provide an executive summary of the score, list specific node IDs requiring attention, and propose atomic fixes using 'update_node' or 'set_autolayout'.`,
+          },
+        },
+      ],
+    };
+  }
+);
+
+// Prompt: Architect UX Experience (5 States, Heuristics & Journey)
+server.prompt(
+  "architect_ux_experience",
+  "Instruct the AI assistant to conduct a comprehensive UX architectural review, generate the 5 UI states, audit cognitive heuristics, and validate user journey flow continuity",
+  {
+    featureName: z.string().describe("Name of the feature or user journey (e.g. 'Checkout Flow', 'Subscription Management')"),
+  },
+  async ({ featureName }) => {
+    return {
+      messages: [
+        {
+          role: "user",
+          content: {
+            type: "text",
+            text: `You are a Principal User Experience (UX) Architect and Cognitive Ergonomics Specialist.
+Your mission is to architect and audit the user experience for: "${featureName}".
+
+Execute the UX Excellence Protocol:
+1. Call 'generate_state_matrix' with title="${featureName}" to guarantee the 5 Essential States (Ideal, Empty, Loading, Error, Partial) are present with zero dead ends.
+2. Call 'generate_interactive_variants' for primary interactive controls to ensure clear affordance, tactile pressed feedback, and accessible WCAG 2.4.7 focus rings.
+3. Call 'audit_ux_heuristics' to evaluate cognitive load against Hick's Law, Fitts's Law, and Miller's Law.
+4. Call 'lint_ux_microcopy' to verify goal-oriented verb+object CTAs and constructive 3-part error messaging.
+5. Call 'validate_user_journey' to ensure seamless flow continuity, non-dead-end navigation, and proper confirmation safeguards.
+6. Provide an executive UX Scorecard and recommendations for the user.`,
           },
         },
       ],
