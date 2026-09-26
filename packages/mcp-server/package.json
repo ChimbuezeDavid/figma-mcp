@@ -1,8 +1,28 @@
 {
   "name": "@chimbuezedavid/figma-mcp",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "type": "module",
   "description": "Enterprise Model Context Protocol (MCP) server & companion plugin for AI-driven UI/UX design & prototyping in Figma",
+  "license": "MIT",
+  "author": "Chimbueze David",
+  "homepage": "https://github.com/ChimbuezeDavid/figma-mcp#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ChimbuezeDavid/figma-mcp.git"
+  },
+  "bugs": {
+    "url": "https://github.com/ChimbuezeDavid/figma-mcp/issues"
+  },
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "figma",
+    "figma-plugin",
+    "prototyping",
+    "ui-ux",
+    "design-system",
+    "ai"
+  ],
   "main": "dist/index.js",
   "bin": {
     "figma-mcp": "dist/index.js"
