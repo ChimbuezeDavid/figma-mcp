@@ -544,35 +544,76 @@ server.tool(
   }
 );
 
-// Tool: Plan Screen Architecture & Decompose Sequential Execution
+// Tool: Plan Screen Architecture & Decompose Sequential Execution (Create or Edit)
 server.tool(
   "plan_screen_architecture",
-  "Architect and plan a multi-section UI screen before code generation. Decomposes the UI into an ordered sequence of structured sections, calculates 8pt grid dimensions, establishes a typography archetype and scale, specifies layout constraints (wrapping, auto-layout directions, stretch alignment) to guarantee zero overflow/overlap, and provides a step-by-step sequential execution roadmap.",
+  "Architect and plan a multi-section UI screen creation OR design edit/refactor before code generation. Decomposes the UI into an ordered sequence of structured steps, establishes typography scale, 8pt grid dimensions, and layout constraints (wrapping, auto-layout directions, stretch alignment) to guarantee zero overflow/overlap. MANDATORY PROTOCOL GATE: Once this tool returns, the LLM MUST present the generated roadmap to the user for explicit confirmation before executing any canvas mutations.",
   {
-    screenName: z.string().describe("Screen name, e.g. 'Institutional Consulting Landing Page'"),
-    preset: z.enum(["Desktop", "iPhone 16", "iPhone 16 Pro Max", "Android", "Tablet", "Custom"]).describe("Target frame preset"),
-    archetype: z.enum(["institutional", "modern-saas", "corporate", "creative-editorial"]).default("institutional").describe("Typography archetype"),
-    palette: z.object({
-      background: z.string().describe("Background hex, e.g. '#FBF9F5'"),
-      surface: z.string().describe("Surface/card hex, e.g. '#FFFFFF'"),
-      primary: z.string().describe("Primary brand color, e.g. '#0A192F'"),
-      accent: z.string().describe("Accent/gold color, e.g. '#C5A880'"),
-      textPrimary: z.string().describe("High-contrast text, e.g. '#0A192F'"),
-      textSecondary: z.string().describe("Muted copy, e.g. '#4A5568'"),
-      border: z.string().describe("Subtle border, e.g. '#E2DCD2'"),
-    }).describe("Color token palette"),
-    sections: z.array(
-      z.object({
-        id: z.string().describe("Unique section identifier (e.g. '01-hero')"),
-        name: z.string().describe("Descriptive section name"),
-        layout: z.enum(["horizontal", "vertical", "grid", "dual-column"]).describe("Layout pattern"),
-        estimatedHeight: z.number().describe("Estimated height in pixels (8pt multiple)"),
-        elements: z.array(z.string()).describe("Content items and elements in this section"),
-        antiOverflowRules: z.array(z.string()).describe("Rules to eliminate overflow: e.g. 'wrap=true on tag cloud', 'text layoutAlign=STRETCH', 'crossAlignItems=min'"),
+    mode: z
+      .enum(["create", "edit"])
+      .default("create")
+      .describe("Planning mode: 'create' for new screens from scratch, 'edit' for refactoring/improving existing nodes"),
+    screenName: z.string().describe("Screen or component name, e.g. 'Institutional Consulting Landing Page' or 'Hero Section Refactor'"),
+    preset: z
+      .enum(["Desktop", "iPhone 16", "iPhone 16 Pro Max", "Android", "Tablet", "Custom"])
+      .optional()
+      .describe("Target frame preset (required for 'create', optional for 'edit')"),
+    archetype: z
+      .enum(["institutional", "modern-saas", "corporate", "creative-editorial"])
+      .default("institutional")
+      .describe("Typography archetype"),
+    palette: z
+      .object({
+        background: z.string().optional().describe("Background hex, e.g. '#FBF9F5'"),
+        surface: z.string().optional().describe("Surface/card hex, e.g. '#FFFFFF'"),
+        primary: z.string().optional().describe("Primary brand color, e.g. '#0A192F'"),
+        accent: z.string().optional().describe("Accent/gold color, e.g. '#C5A880'"),
+        textPrimary: z.string().optional().describe("High-contrast text, e.g. '#0A192F'"),
+        textSecondary: z.string().optional().describe("Muted copy, e.g. '#4A5568'"),
+        border: z.string().optional().describe("Subtle border, e.g. '#E2DCD2'"),
       })
-    ).describe("Ordered array of sections to build sequentially"),
+      .optional()
+      .describe("Color token palette"),
+    sections: z
+      .array(
+        z.object({
+          id: z.string().describe("Unique section identifier (e.g. '01-hero')"),
+          name: z.string().describe("Descriptive section name"),
+          layout: z.enum(["horizontal", "vertical", "grid", "dual-column"]).describe("Layout pattern"),
+          estimatedHeight: z.number().describe("Estimated height in pixels (8pt multiple)"),
+          elements: z.array(z.string()).describe("Content items and elements in this section"),
+          antiOverflowRules: z.array(z.string()).describe("Rules to eliminate overflow: e.g. 'wrap=true on tag cloud', 'text layoutAlign=STRETCH', 'crossAlignItems=min'"),
+        })
+      )
+      .optional()
+      .describe("Ordered array of sections to build sequentially (for 'create' mode)"),
+    // Edit mode specific parameters
+    targetNodeIds: z.array(z.string()).optional().describe("Figma node IDs to be edited/refactored (for 'edit' mode)"),
+    refactorGoals: z.array(z.string()).optional().describe("Key refactoring objectives (e.g. 'Fix tag row overflow', 'Elevate typography to 8pt scale')"),
+    changes: z
+      .array(
+        z.object({
+          targetNodeId: z.string().describe("Specific node ID to modify"),
+          nodeName: z.string().optional().describe("Name of the node in Figma"),
+          action: z.enum([
+            "modify_layout",
+            "restyle_typography",
+            "adjust_spacing",
+            "insert_elements",
+            "remove_elements",
+            "fix_overflow",
+            "replace_image",
+          ]).describe("Type of refactoring action"),
+          currentIssues: z.array(z.string()).describe("Observed defects (e.g. overlapping text, hardcoded width, missing wrap)"),
+          proposedSolution: z.string().describe("Proposed structural/property modification"),
+          proposedProperties: z.record(z.any()).optional().describe("Explicit properties to apply (e.g. { layoutWrap: 'WRAP', itemSpacing: 12 })"),
+          antiRegressionRules: z.array(z.string()).describe("Rules to ensure parent/sibling frames do not break"),
+        })
+      )
+      .optional()
+      .describe("Ordered array of atomic modifications (for 'edit' mode)"),
   },
-  async ({ screenName, preset, archetype, palette, sections }) => {
+  async ({ mode, screenName, preset, archetype, palette, sections, targetNodeIds, refactorGoals, changes }) => {
     const widthMap: Record<string, number> = {
       Desktop: 1440,
       "iPhone 16": 393,
@@ -581,8 +622,9 @@ server.tool(
       Tablet: 834,
       Custom: 1440,
     };
-    const screenWidth = widthMap[preset] || 1440;
-    const contentMaxWidth = preset === "Desktop" ? 1200 : screenWidth - 32;
+    const targetPreset = preset || "Desktop";
+    const screenWidth = widthMap[targetPreset] || 1440;
+    const contentMaxWidth = targetPreset === "Desktop" ? 1200 : screenWidth - 32;
 
     const fontPairing = {
       institutional: { heading: "Playfair Display", body: "Inter", accent: "Cinzel" },
@@ -591,37 +633,95 @@ server.tool(
       "creative-editorial": { heading: "Playfair Display", body: "Inter", accent: "Playfair Display" },
     }[archetype];
 
-    const totalEstimatedHeight = sections.reduce((sum, s) => sum + s.estimatedHeight, 0);
+    const typographyScale = {
+      display: { variant: "display-xl", size: 48, lineHeight: 56, weight: "Bold", role: "Hero headline" },
+      sectionHeading: { variant: "h1", size: 30, lineHeight: 38, weight: "SemiBold", role: "Major section headers" },
+      cardTitle: { variant: "h2", size: 24, lineHeight: 32, weight: "SemiBold", role: "Card titles & modal headers" },
+      subheading: { variant: "subheading", size: 18, lineHeight: 26, weight: "Medium", role: "Pillar titles, lead paragraphs" },
+      body: { variant: "body-md", size: 14, lineHeight: 22, weight: "Regular", role: "Descriptions, bullet points" },
+      caption: { variant: "caption", size: 12, lineHeight: 16, weight: "Medium", role: "Metadata, pills, tags" },
+    };
+
+    const antiOverflowProtocol = [
+      "1. Never use single-line textAutoResize in vertical cards or containers. Set text width='fill' or layoutAlign='STRETCH'.",
+      "2. Any horizontal row of dynamic items (pills, badges, logos, metrics) must specify wrap=true and counterAxisSpacing=8.",
+      "3. Multi-column sections with unequal heights must use crossAlignItems='min' (top-aligned) to prevent bottom card drift.",
+      "4. All images must be resolved via local file paths or sanitized base64; fallbacks must use branded surface fills (#EDE8DC) instead of empty fills.",
+    ];
+
+    if (mode === "edit") {
+      const editPlan = {
+        meta: {
+          mode: "edit",
+          screenName,
+          targetNodeIds: targetNodeIds || [],
+          refactorGoals: refactorGoals || [],
+          gridUnit: "8pt",
+        },
+        requiresUserConfirmation: true,
+        executionGate: "LOCKED - Present this plan to the user and obtain explicit confirmation before executing canvas mutations.",
+        confirmationPrompt: `Please confirm: Proceed with the ${changes?.length || 0}-step refactoring plan for '${screenName}'?`,
+        typography: {
+          archetype,
+          fontPairing,
+          scale: typographyScale,
+        },
+        antiOverflowProtocol,
+        sequentialRoadmap: (changes || []).map((c, index) => ({
+          step: index + 1,
+          targetNodeId: c.targetNodeId,
+          nodeName: c.nodeName || `Node ${c.targetNodeId}`,
+          action: c.action,
+          diagnosis: c.currentIssues,
+          solution: c.proposedSolution,
+          proposedProperties: c.proposedProperties || {},
+          antiRegressionGuarantees: c.antiRegressionRules,
+          executionInstruction: `Apply ${c.action} on node '${c.targetNodeId}' with constraints: ${c.proposedSolution}`,
+        })),
+      };
+
+      return {
+        content: [
+          {
+            type: "text",
+            text: JSON.stringify(editPlan, null, 2),
+          },
+        ],
+      };
+    }
+
+    // Default: "create" mode
+    const totalEstimatedHeight = (sections || []).reduce((sum, s) => sum + s.estimatedHeight, 0);
 
     const blueprint = {
       meta: {
+        mode: "create",
         screenName,
-        preset,
+        preset: targetPreset,
         canvasWidth: screenWidth,
         contentMaxWidth,
         totalEstimatedHeight,
         gridUnit: "8pt",
       },
+      requiresUserConfirmation: true,
+      executionGate: "LOCKED - Present this plan to the user and obtain explicit confirmation before executing canvas mutations.",
+      confirmationPrompt: `Please confirm: Proceed with generating the ${(sections || []).length}-section screen '${screenName}'?`,
       typography: {
         archetype,
         fontPairing,
-        scale: {
-          display: { variant: "display-xl", size: 48, lineHeight: 56, weight: "Bold", role: "Hero headline" },
-          sectionHeading: { variant: "h1", size: 30, lineHeight: 38, weight: "SemiBold", role: "Major section headers" },
-          cardTitle: { variant: "h2", size: 24, lineHeight: 32, weight: "SemiBold", role: "Card titles & modal headers" },
-          subheading: { variant: "subheading", size: 18, lineHeight: 26, weight: "Medium", role: "Pillar titles, lead paragraphs" },
-          body: { variant: "body-md", size: 14, lineHeight: 22, weight: "Regular", role: "Descriptions, bullet points" },
-          caption: { variant: "caption", size: 12, lineHeight: 16, weight: "Medium", role: "Metadata, pills, tags" },
-        },
+        scale: typographyScale,
       },
-      palette,
-      antiOverflowProtocol: [
-        "1. Never use single-line textAutoResize in vertical cards or containers. Set text width='fill' or layoutAlign='STRETCH'.",
-        "2. Any horizontal row of dynamic items (pills, badges, logos, metrics) must specify wrap=true and counterAxisSpacing=8.",
-        "3. Multi-column sections with unequal heights must use crossAlignItems='min' (top-aligned) to prevent bottom card drift.",
-        "4. All images must be resolved via local file paths or sanitized base64; fallbacks must use branded surface fills (#EDE8DC) instead of empty fills.",
-      ],
-      sequentialRoadmap: sections.map((s, index) => ({
+      palette: palette || {
+        background: "#FBF9F5",
+        surface: "#FFFFFF",
+        primary: "#0A192F",
+        accent: "#C5A880",
+        textPrimary: "#0A192F",
+        textSecondary: "#4A5568",
+        border: "#E2DCD2",
+      },
+      antiOverflowProtocol,
+      sequentialRoadmap: (sections || []).map((s, index) => ({
         step: index + 1,
         sectionId: s.id,
         name: s.name,
