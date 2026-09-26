@@ -378,6 +378,7 @@ function serializeNode(node: BaseNode, maxDepth: number, currentDepth: number): 
     const text = node as TextNode;
     base.characters = text.characters;
     base.fontSize = text.fontSize;
+    base.fontName = text.fontName;
   }
 
   if ("children" in node && currentDepth < maxDepth) {
@@ -411,6 +412,9 @@ export async function handleUpdateNode(params: {
   primaryAxisAlignItems?: "MIN" | "CENTER" | "MAX" | "SPACE_BETWEEN";
   counterAxisAlignItems?: "MIN" | "CENTER" | "MAX" | "BASELINE";
   itemSpacing?: number;
+  fontFamily?: string;
+  fontWeight?: string;
+  fontSize?: number;
 }) {
   const node = figma.getNodeById(params.nodeId);
   if (!node) throw new Error(`Node '${params.nodeId}' not found.`);
@@ -423,10 +427,17 @@ export async function handleUpdateNode(params: {
 
   if (node.type === "TEXT") {
     const textNode = node as TextNode;
-    if (textNode.fontName !== figma.mixed) {
-      await ensureFontLoaded(textNode.fontName.family, textNode.fontName.style);
-    } else {
-      await ensureFontLoaded("Inter", "Regular");
+    const currentFamily = textNode.fontName !== figma.mixed ? textNode.fontName.family : "Inter";
+    const currentStyle = textNode.fontName !== figma.mixed ? textNode.fontName.style : "Regular";
+    const targetFamily = params.fontFamily || currentFamily;
+    const targetStyle = params.fontWeight || currentStyle;
+
+    const loadedFont = await ensureFontLoaded(targetFamily, targetStyle);
+    textNode.fontName = loadedFont;
+
+    if (params.fontSize !== undefined) {
+      textNode.fontSize = params.fontSize;
+      applyIntelligentTypography(textNode, params.fontSize);
     }
     if (params.textAutoResize !== undefined) {
       textNode.textAutoResize = params.textAutoResize;
@@ -1056,6 +1067,80 @@ export async function handleFocusViewport(params: {
     focusedCount: nodes.length,
     focusedNodes: nodes.map((n) => ({ id: n.id, name: n.name, type: n.type })),
     selected: params.select !== false,
+  };
+}
+
+export async function handleApplyTypographyTheme(params: {
+  rootNodeId: string;
+  headingFont?: string;
+  bodyFont?: string;
+}) {
+  const root = figma.getNodeById(params.rootNodeId);
+  if (!root) throw new Error(`Root node '${params.rootNodeId}' not found.`);
+
+  const headingFamily = params.headingFont || "Playfair Display";
+  const bodyFamily = params.bodyFont || "Inter";
+
+  // Pre-load primary font weights
+  await Promise.all([
+    ensureFontLoaded(headingFamily, "Bold"),
+    ensureFontLoaded(headingFamily, "SemiBold"),
+    ensureFontLoaded(headingFamily, "Regular"),
+    ensureFontLoaded(bodyFamily, "Bold"),
+    ensureFontLoaded(bodyFamily, "SemiBold"),
+    ensureFontLoaded(bodyFamily, "Medium"),
+    ensureFontLoaded(bodyFamily, "Regular"),
+  ]);
+
+  let updatedCount = 0;
+
+  function isHeading(node: TextNode): boolean {
+    const size = typeof node.fontSize === "number" ? node.fontSize : 16;
+    if (size >= 20) return true;
+    const n = node.name.toLowerCase();
+    if (
+      n.includes("title") ||
+      n.includes("heading") ||
+      n.includes("headline") ||
+      n.includes("h1") ||
+      n.includes("h2") ||
+      n.includes("h3")
+    ) {
+      return true;
+    }
+    return false;
+  }
+
+  async function walk(node: BaseNode) {
+    if (node.type === "TEXT") {
+      const textNode = node as TextNode;
+      const heading = isHeading(textNode);
+      const targetFamily = heading ? headingFamily : bodyFamily;
+      let currentStyle = "Regular";
+      if (textNode.fontName !== figma.mixed) {
+        currentStyle = textNode.fontName.style;
+      }
+
+      const loadedFont = await ensureFontLoaded(targetFamily, currentStyle);
+      textNode.fontName = loadedFont;
+      const size = typeof textNode.fontSize === "number" ? textNode.fontSize : 16;
+      applyIntelligentTypography(textNode, size);
+      updatedCount++;
+    }
+
+    if ("children" in node) {
+      for (const child of (node as any).children) {
+        await walk(child);
+      }
+    }
+  }
+
+  await walk(root);
+  return {
+    rootNodeId: params.rootNodeId,
+    headingFont: headingFamily,
+    bodyFont: bodyFamily,
+    updatedCount,
   };
 }
 

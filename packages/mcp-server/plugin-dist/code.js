@@ -108,18 +108,31 @@
       if (loadedFonts.has(key)) {
         return { family, style };
       }
-      try {
-        const fontName = { family, style };
-        yield figma.loadFontAsync(fontName);
-        loadedFonts.add(key);
-        return fontName;
-      } catch (error) {
-        console.warn(`[Figma Plugin] Failed to load font ${family} ${style}, falling back to Inter Regular:`, error);
-        const fallback = { family: "Inter", style: "Regular" };
-        yield figma.loadFontAsync(fallback);
-        loadedFonts.add("Inter::Regular");
-        return fallback;
+      const styleCandidates = [
+        style,
+        style === "SemiBold" ? "Semi Bold" : void 0,
+        style === "Semi Bold" ? "SemiBold" : void 0,
+        style === "Medium" ? "Regular" : void 0,
+        style === "Bold" ? "Semi Bold" : void 0,
+        "Regular"
+      ].filter((s) => Boolean(s));
+      for (const candidate of styleCandidates) {
+        try {
+          const fontName = { family, style: candidate };
+          yield figma.loadFontAsync(fontName);
+          loadedFonts.add(key);
+          return fontName;
+        } catch (e) {
+        }
       }
+      const fallback = { family: "Inter", style: "Regular" };
+      try {
+        yield figma.loadFontAsync(fallback);
+      } catch (err) {
+        console.warn("Failed to load even fallback font:", err);
+      }
+      loadedFonts.add(key);
+      return fallback;
     });
   }
 
@@ -138,6 +151,20 @@
       emojisRemoved: true
     };
   }
+  var STANDARD_TYPE_SCALE = {
+    "display-2xl": { size: 64, lineHeight: 72, letterSpacing: -1.5, defaultWeight: "Bold" },
+    "display-xl": { size: 48, lineHeight: 56, letterSpacing: -1.5, defaultWeight: "Bold" },
+    "display-lg": { size: 36, lineHeight: 44, letterSpacing: -1.2, defaultWeight: "SemiBold" },
+    h1: { size: 30, lineHeight: 38, letterSpacing: -1, defaultWeight: "SemiBold" },
+    h2: { size: 24, lineHeight: 32, letterSpacing: -0.8, defaultWeight: "SemiBold" },
+    h3: { size: 20, lineHeight: 28, letterSpacing: -0.5, defaultWeight: "SemiBold" },
+    subheading: { size: 18, lineHeight: 26, letterSpacing: -0.3, defaultWeight: "Medium" },
+    "body-lg": { size: 16, lineHeight: 24, letterSpacing: 0, defaultWeight: "Regular" },
+    "body-md": { size: 14, lineHeight: 22, letterSpacing: 0, defaultWeight: "Regular" },
+    "body-sm": { size: 13, lineHeight: 18, letterSpacing: 0.2, defaultWeight: "Regular" },
+    caption: { size: 12, lineHeight: 16, letterSpacing: 1.2, defaultWeight: "Medium" },
+    badge: { size: 11, lineHeight: 14, letterSpacing: 1.5, defaultWeight: "SemiBold" }
+  };
   function calculateTypographyProperties(fontSize, isUppercase = false) {
     const size = Math.max(8, fontSize);
     if (size >= 32) {
@@ -169,7 +196,14 @@
       letterSpacing: isUppercase ? 2.5 : 1.2
     };
   }
-  function applyIntelligentTypography(textNode, fontSize, isUppercase) {
+  function applyIntelligentTypography(textNode, fontSize, isUppercase, variant) {
+    if (variant && STANDARD_TYPE_SCALE[variant]) {
+      const scale = STANDARD_TYPE_SCALE[variant];
+      textNode.fontSize = scale.size;
+      textNode.lineHeight = { value: scale.lineHeight, unit: "PIXELS" };
+      textNode.letterSpacing = { value: scale.letterSpacing, unit: "PERCENT" };
+      return;
+    }
     const size = fontSize != null ? fontSize : typeof textNode.fontSize === "number" ? textNode.fontSize : 16;
     const { lineHeight, letterSpacing } = calculateTypographyProperties(size, isUppercase);
     textNode.lineHeight = { value: lineHeight, unit: "PIXELS" };
@@ -199,7 +233,7 @@
             node.fills = [{ type: "IMAGE", scaleMode: "FILL", imageHash: image.hash }];
             return;
           } else if (imageUrl.startsWith("data:")) {
-            const base64Data = imageUrl.split(",")[1] || imageUrl;
+            const base64Data = (imageUrl.split(",")[1] || imageUrl).replace(/\s+/g, "");
             const bytes = figma.base64Decode(base64Data);
             const image = figma.createImage(bytes);
             node.fills = [{ type: "IMAGE", scaleMode: "FILL", imageHash: image.hash }];
@@ -212,7 +246,7 @@
       if (fallbackColor) {
         node.fills = [createSolidPaint(fallbackColor)];
       } else {
-        node.fills = [];
+        node.fills = [createSolidPaint("#EDE8DC")];
       }
     });
   }
@@ -227,7 +261,9 @@
         const [family, style] = fontKey.split("::");
         yield ensureFontLoaded(family, style);
       }
-      const dims = spec.preset && PRESET_DIMENSIONS[spec.preset] ? PRESET_DIMENSIONS[spec.preset] : { width: spec.width || 393, height: spec.height || 852 };
+      const parsedWidth = typeof spec.width === "number" ? spec.width : 393;
+      const parsedHeight = typeof spec.height === "number" ? spec.height : 900;
+      const dims = spec.preset && PRESET_DIMENSIONS[spec.preset] ? PRESET_DIMENSIONS[spec.preset] : { width: parsedWidth, height: parsedHeight };
       const rootFrame = figma.createFrame();
       rootFrame.name = spec.name || "Screen";
       rootFrame.resize(dims.width, dims.height);
@@ -280,6 +316,12 @@
             if (spec.spacing !== void 0) frame.itemSpacing = spec.spacing;
             applyPadding(frame, (_a = spec.padding) != null ? _a : spec.type === "card" ? 16 : 0);
             applyAlignment(frame, spec.alignItems, spec.crossAlignItems);
+            if (spec.wrap) {
+              frame.layoutWrap = "WRAP";
+              if (spec.counterAxisSpacing !== void 0) {
+                frame.counterAxisSpacing = spec.counterAxisSpacing;
+              }
+            }
           }
           const initialW = typeof spec.width === "number" ? spec.width : parent.width - 32;
           const initialH = typeof spec.height === "number" ? spec.height : 100;
@@ -383,17 +425,22 @@
           break;
         }
         case "text": {
+          let weight = spec.fontWeight || "Regular";
+          let fontSize = spec.fontSize || 15;
+          if (spec.variant && STANDARD_TYPE_SCALE[spec.variant]) {
+            fontSize = spec.fontSize || STANDARD_TYPE_SCALE[spec.variant].size;
+            weight = spec.fontWeight || STANDARD_TYPE_SCALE[spec.variant].defaultWeight;
+          }
           const font = yield ensureFontLoaded(
             spec.fontFamily || "Inter",
-            spec.fontWeight || "Regular"
+            weight
           );
           const textNode = figma.createText();
           textNode.fontName = font;
-          const fontSize = spec.fontSize || 15;
           textNode.fontSize = fontSize;
           const { text: cleanText } = sanitizeUiText(spec.text || "");
           textNode.characters = cleanText;
-          applyIntelligentTypography(textNode, fontSize);
+          applyIntelligentTypography(textNode, fontSize, false, spec.variant);
           textNode.fills = [createSolidPaint(spec.textColor || spec.fill || "#111827")];
           textNode.name = spec.name || (cleanText ? cleanText.slice(0, 20) : "Text");
           parent.appendChild(textNode);
@@ -407,13 +454,13 @@
           } else if (typeof spec.width === "number") {
             textNode.resize(spec.width, textNode.height);
             textNode.textAutoResize = "HEIGHT";
+          } else if (parent.layoutMode === "VERTICAL" && parent.width > 60) {
+            const innerW = Math.max(60, parent.width - ((parent.paddingLeft || 0) + (parent.paddingRight || 0)));
+            textNode.resize(innerW, textNode.height);
+            textNode.textAutoResize = "HEIGHT";
+            textNode.layoutAlign = "STRETCH";
           } else {
-            if (parent.layoutMode === "VERTICAL" && textNode.characters.length > 40 && parent.width > 120) {
-              const innerW = Math.max(120, parent.width - ((parent.paddingLeft || 0) + (parent.paddingRight || 0)));
-              textNode.resize(innerW, textNode.height);
-              textNode.textAutoResize = "HEIGHT";
-              textNode.layoutAlign = "STRETCH";
-            }
+            textNode.textAutoResize = "WIDTH_AND_HEIGHT";
           }
           if (spec.tag) tagRegistry[spec.tag] = textNode.id;
           break;
@@ -521,8 +568,12 @@
   }
   function collectFonts(specs, set) {
     for (const s of specs) {
-      if (s.fontFamily || s.fontWeight) {
-        set.add(`${s.fontFamily || "Inter"}::${s.fontWeight || "Regular"}`);
+      let weight = s.fontWeight || "Regular";
+      if (s.variant && STANDARD_TYPE_SCALE[s.variant] && !s.fontWeight) {
+        weight = STANDARD_TYPE_SCALE[s.variant].defaultWeight;
+      }
+      if (s.fontFamily || s.fontWeight || s.variant) {
+        set.add(`${s.fontFamily || "Inter"}::${weight}`);
       }
       if (s.children) {
         collectFonts(s.children, set);
@@ -682,12 +733,20 @@
         if (params.counterAxisSizing) {
           frame.counterAxisSizingMode = params.counterAxisSizing;
         }
+        if (params.wrap !== void 0) {
+          frame.layoutWrap = params.wrap ? "WRAP" : "NO_WRAP";
+        }
+        if (params.counterAxisSpacing !== void 0) {
+          frame.counterAxisSpacing = params.counterAxisSpacing;
+        }
       }
       return {
         id: frame.id,
         name: frame.name,
         layoutMode: frame.layoutMode,
         itemSpacing: frame.itemSpacing,
+        layoutWrap: frame.layoutWrap,
+        counterAxisSpacing: frame.counterAxisSpacing,
         padding: {
           top: frame.paddingTop,
           bottom: frame.paddingBottom,
@@ -808,6 +867,7 @@
       const text = node;
       base.characters = text.characters;
       base.fontSize = text.fontSize;
+      base.fontName = text.fontName;
     }
     if ("children" in node && currentDepth < maxDepth) {
       base.children = node.children.filter((c) => c.type !== "VECTOR" && c.type !== "BOOLEAN_OPERATION").slice(0, 50).map((child) => serializeNode(child, maxDepth, currentDepth + 1));
@@ -826,13 +886,21 @@
       if ("x" in node && params.x !== void 0) node.x = params.x;
       if ("y" in node && params.y !== void 0) node.y = params.y;
       if (node.type === "TEXT") {
+        const textNode = node;
+        const currentFamily = textNode.fontName !== figma.mixed ? textNode.fontName.family : "Inter";
+        const currentStyle = textNode.fontName !== figma.mixed ? textNode.fontName.style : "Regular";
+        const targetFamily = params.fontFamily || currentFamily;
+        const targetStyle = params.fontWeight || currentStyle;
+        const loadedFont = yield ensureFontLoaded(targetFamily, targetStyle);
+        textNode.fontName = loadedFont;
+        if (params.fontSize !== void 0) {
+          textNode.fontSize = params.fontSize;
+          applyIntelligentTypography(textNode, params.fontSize);
+        }
+        if (params.textAutoResize !== void 0) {
+          textNode.textAutoResize = params.textAutoResize;
+        }
         if (params.width !== void 0) {
-          const textNode = node;
-          if (textNode.fontName !== figma.mixed) {
-            yield ensureFontLoaded(textNode.fontName.family, textNode.fontName.style);
-          } else {
-            yield ensureFontLoaded("Inter", "Regular");
-          }
           textNode.textAutoResize = "HEIGHT";
           textNode.resize(params.width, textNode.height);
         }
@@ -840,6 +908,18 @@
         const currentW = node.width || 100;
         const currentH = node.height || 100;
         node.resize((_a = params.width) != null ? _a : currentW, (_b = params.height) != null ? _b : currentH);
+      }
+      if ("layoutAlign" in node && params.layoutAlign !== void 0) {
+        node.layoutAlign = params.layoutAlign;
+      }
+      if ("layoutGrow" in node && params.layoutGrow !== void 0) {
+        node.layoutGrow = params.layoutGrow;
+      }
+      if (node.type === "FRAME") {
+        const frame = node;
+        if (params.primaryAxisAlignItems) frame.primaryAxisAlignItems = params.primaryAxisAlignItems;
+        if (params.counterAxisAlignItems) frame.counterAxisAlignItems = params.counterAxisAlignItems;
+        if (params.itemSpacing !== void 0) frame.itemSpacing = params.itemSpacing;
       }
       if (params.image && "fills" in node) {
         yield applyImageOrColor(node, params.image, params.fill);
@@ -1322,6 +1402,63 @@
         focusedCount: nodes.length,
         focusedNodes: nodes.map((n) => ({ id: n.id, name: n.name, type: n.type })),
         selected: params.select !== false
+      };
+    });
+  }
+  function handleApplyTypographyTheme(params) {
+    return __async(this, null, function* () {
+      const root = figma.getNodeById(params.rootNodeId);
+      if (!root) throw new Error(`Root node '${params.rootNodeId}' not found.`);
+      const headingFamily = params.headingFont || "Playfair Display";
+      const bodyFamily = params.bodyFont || "Inter";
+      yield Promise.all([
+        ensureFontLoaded(headingFamily, "Bold"),
+        ensureFontLoaded(headingFamily, "SemiBold"),
+        ensureFontLoaded(headingFamily, "Regular"),
+        ensureFontLoaded(bodyFamily, "Bold"),
+        ensureFontLoaded(bodyFamily, "SemiBold"),
+        ensureFontLoaded(bodyFamily, "Medium"),
+        ensureFontLoaded(bodyFamily, "Regular")
+      ]);
+      let updatedCount = 0;
+      function isHeading(node) {
+        const size = typeof node.fontSize === "number" ? node.fontSize : 16;
+        if (size >= 20) return true;
+        const n = node.name.toLowerCase();
+        if (n.includes("title") || n.includes("heading") || n.includes("headline") || n.includes("h1") || n.includes("h2") || n.includes("h3")) {
+          return true;
+        }
+        return false;
+      }
+      function walk(node) {
+        return __async(this, null, function* () {
+          if (node.type === "TEXT") {
+            const textNode = node;
+            const heading = isHeading(textNode);
+            const targetFamily = heading ? headingFamily : bodyFamily;
+            let currentStyle = "Regular";
+            if (textNode.fontName !== figma.mixed) {
+              currentStyle = textNode.fontName.style;
+            }
+            const loadedFont = yield ensureFontLoaded(targetFamily, currentStyle);
+            textNode.fontName = loadedFont;
+            const size = typeof textNode.fontSize === "number" ? textNode.fontSize : 16;
+            applyIntelligentTypography(textNode, size);
+            updatedCount++;
+          }
+          if ("children" in node) {
+            for (const child of node.children) {
+              yield walk(child);
+            }
+          }
+        });
+      }
+      yield walk(root);
+      return {
+        rootNodeId: params.rootNodeId,
+        headingFont: headingFamily,
+        bodyFont: bodyFamily,
+        updatedCount
       };
     });
   }
@@ -2525,7 +2662,8 @@
         }
         // Step 4: Declarative Screen Generator
         case "generate_ui_tree": {
-          result = yield handleGenerateUITree(params);
+          const spec = params.spec || params;
+          result = yield handleGenerateUITree(spec);
           break;
         }
         // Step 5: Prototyping & Interactions
@@ -2576,6 +2714,10 @@
         }
         case "focus_viewport": {
           result = yield handleFocusViewport(params);
+          break;
+        }
+        case "apply_typography_theme": {
+          result = yield handleApplyTypographyTheme(params);
           break;
         }
         case "lint_design_compliance": {

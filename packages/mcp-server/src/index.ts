@@ -273,12 +273,37 @@ server.tool(
     primaryAxisAlignItems: z.enum(["MIN", "CENTER", "MAX", "SPACE_BETWEEN"]).optional().describe("Primary axis alignment for frames"),
     counterAxisAlignItems: z.enum(["MIN", "CENTER", "MAX", "BASELINE"]).optional().describe("Counter axis alignment for frames"),
     itemSpacing: z.number().optional().describe("AutoLayout gap between children"),
+    fontFamily: z.string().optional().describe("New font family for text nodes (e.g. 'Playfair Display', 'Inter')"),
+    fontWeight: z.string().optional().describe("New font weight/style for text nodes (e.g. 'Bold', 'Regular', 'SemiBold')"),
+    fontSize: z.number().optional().describe("New font size in pixels"),
   },
   async (params) => {
     if (params.image) {
       params.image = resolveLocalImage(params.image);
     }
     const result = await bridge.sendCommand("update_node", params);
+    return {
+      content: [
+        {
+          type: "text",
+          text: JSON.stringify(result, null, 2),
+        },
+      ],
+    };
+  }
+);
+
+// Tool: Apply typography theme across artboard
+server.tool(
+  "apply_typography_theme",
+  "Batch apply heading and body typography system across all text nodes inside a frame or artboard",
+  {
+    rootNodeId: z.string().describe("Root frame or artboard ID (e.g. '16:506')"),
+    headingFont: z.string().default("Playfair Display").describe("Font family for headings"),
+    bodyFont: z.string().default("Inter").describe("Font family for body text, badges, and controls"),
+  },
+  async (params) => {
+    const result = await bridge.sendCommand("apply_typography_theme", params);
     return {
       content: [
         {

@@ -23,6 +23,7 @@ import {
   handleSetEffects,
   handleCreateSection,
   handleFocusViewport,
+  handleApplyTypographyTheme,
 } from "./handlers/canvas";
 import { handleGenerateUITree } from "./handlers/declarative";
 import {
@@ -258,6 +259,11 @@ figma.ui.onmessage = async (msg: {
 
       case "focus_viewport": {
         result = await handleFocusViewport(params as any);
+        break;
+      }
+
+      case "apply_typography_theme": {
+        result = await handleApplyTypographyTheme(params as any);
         break;
       }
 

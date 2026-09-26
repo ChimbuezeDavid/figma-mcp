@@ -5,7 +5,7 @@
   <img src="https://img.shields.io/badge/Protocol-Model%20Context%20Protocol-22c55e.svg?style=flat-square" alt="MCP Protocol" />
   <img src="https://img.shields.io/badge/Figma-Plugin%20API%201.0-a855f7.svg?style=flat-square" alt="Figma API" />
   <img src="https://img.shields.io/badge/TypeScript-5.4-3178c6.svg?style=flat-square" alt="TypeScript" />
-  <img src="https://img.shields.io/badge/Tools-39%20Production%20Tools-f59e0b.svg?style=flat-square" alt="39 Tools" />
+  <img src="https://img.shields.io/badge/Tools-40%20Production%20Tools-f59e0b.svg?style=flat-square" alt="40 Tools" />
 </p>
 
 <p align="center">
@@ -25,6 +25,7 @@ Traditional AI design tools produce "Dribbble-grade slop"—glossy, unvalidated 
 | **3. "AI Slop" & HCI Deficiency** | LLMs produce amateur visual outputs: buttons littered with emojis, uncalibrated leading that clips text, arbitrary spacing (`13px`, `27px`), and tiny inaccessible touch targets ($< 44\text{px}$). | **Enterprise Design Guardian & HCI Engine**<br>Automated zero-emoji sanitizer, 8pt spatial grid snapping, intelligent proportional typography leading/tracking, and Apple HIG 44px minimum touch target enforcement. |
 | **4. State Incompleteness & First-Run Blindness** | Generative AI suffers from "state blindness"—producing exclusively static, populated mockups under ideal conditions. In real-world software, over half of the user lifecycle is spent in non-ideal states (zero-data onboarding, high-latency loading, network faults, and sparse datasets). Neglecting these lifecycle states leaves designs brittle, forces engineering teams to improvise fallback UI in production, and drives high first-run user churn. | **The "5 States of UI" Engine (`generate_state_matrix`)**<br>Instantly generates Ideal, Empty Onboarding, Loading Skeleton Shimmer, Empathetic Error with 1-click retry, and Partial/Boundary stress-test states. |
 | **5. Dead-End Journeys & Missing Affordances** | AI outputs isolated, static screens that trap users without back affordances, lacks tactile interactive states (Hover, Pressed, Focus Rings), and uses vague CTAs (*"Submit"*). | **Cognitive Psychology & Journey Validator**<br>Scores screens against Hick's, Fitts's, Miller's, and Jakob's laws (`audit_ux_heuristics`), detects dead ends (`validate_user_journey`), and generates accessible focus rings (`generate_interactive_variants`). |
+| **6. Arbitrary Design Drift & Blanket Blindness** | AI tools either force rigid, unconfigurable typography defaults or dump sweeping, untracked changes across an artboard without per-phase confirmation. | **Niche-Adaptive Typography & Phased Confirmation Protocol**<br>Dynamic typography engine (`apply_typography_theme`) enabling niche-specific pairings (Playfair, Inter, Poppins, Garamond) paired with granular, step-by-step confirmation protocols before canvas modifications. |
 
 ---
 
@@ -37,12 +38,12 @@ flowchart LR
     end
 
     subgraph Server["Figma MCP Core"]
-        MCPServer["Node.js MCP Server<br/>(39 Tools + 3 Resources)"]
+        MCPServer["Node.js MCP Server<br/>(40 Tools + 3 Resources)"]
         Bridge["WebSocket Bridge Server<br/>(ws://localhost:3055)"]
     end
 
     subgraph Desktop["Figma Desktop Sandbox"]
-        Plugin["Figma Companion Plugin<br/>(dist-release/figma-companion-plugin)"]
+        Plugin["Figma Companion Plugin<br/>(Unthrottled Web Worker Keep-Alive)"]
         Canvas["Native Figma Canvas Engine<br/>(AutoLayout, Typography, Prototyping)"]
     end
 
@@ -56,8 +57,8 @@ flowchart LR
     style Desktop fill:#0f172a,stroke:#a855f7,stroke-width:2px,color:#f8fafc
 ```
 
-1. **MCP Server (`packages/mcp-server`)**: Communicates over standard `STDIO` with LLM clients, exposing **39 specialized design and UX tools**, while hosting a dual-stack local loopback WebSocket server on port `3055`.
-2. **Figma Companion Plugin (`packages/figma-plugin`)**: Sandboxed plugin running inside Figma Desktop. Connects to the local bridge and directly executes native `figma.*` canvas operations, font loading, AutoLayout hierarchy, and prototype interaction noodles.
+1. **MCP Server (`packages/mcp-server`)**: Communicates over standard `STDIO` with LLM clients, exposing **40 specialized design and UX tools**, while hosting a dual-stack local loopback WebSocket server on port `3055`.
+2. **Figma Companion Plugin (`packages/figma-plugin`)**: Sandboxed plugin running inside Figma Desktop with an unthrottled Web Worker heartbeat loop. Connects to the local bridge and directly executes native `figma.*` canvas operations, font loading, AutoLayout hierarchy, and prototype interaction noodles.
 
 ---
 
@@ -167,10 +168,11 @@ Open Claude Desktop or Cursor and test any of these prompts:
 * **`create_component_instance`**: Instantiates linked component instances from any master component ID.
 * **`set_effects`**: Applies elevation shadows, inner shadows, layer blurs, and background blurs (`DROP_SHADOW`, `INNER_SHADOW`, `LAYER_BLUR`, `BACKGROUND_BLUR`).
 * **`create_section`**: Groups and categorizes artboards and user journey paths into organized, labeled Figma Sections.
+* **`apply_typography_theme`**: Batch-applies a complete typography system across all text nodes inside a frame or artboard in a single call. Intelligently classifies headings vs. body copy, preloads font weights (`Playfair Display`, `Inter`, `Poppins`, `Merriweather`, etc.), and recalibrates leading and optical tracking.
 * **`focus_viewport`**: Pans and zooms the canvas viewport directly to specified nodes, with optional selection.
 * **`create_text`**: Inserts typography with automatic font preloading (`Inter`, `Roboto`, etc.).
 * **`set_autolayout`**: Applies Flexbox/AutoLayout (direction, gap, padding, axis alignments).
-* **`update_node`**: Modifies position, dimensions, fills, corner radius, opacity, or visibility.
+* **`update_node`**: Modifies position, dimensions, fills, corner radius, opacity, visibility, or typography (`fontFamily`, `fontWeight`, `fontSize`).
 * **`delete_nodes`**: Deletes one or more nodes by ID.
 * **`duplicate_node`**: Clones frames or elements with offsets (ideal for prototype state variants).
 * **`set_stroke`**: Configures border colors, thicknesses, and alignments.
@@ -185,7 +187,7 @@ Open Claude Desktop or Cursor and test any of these prompts:
 * **`ping_figma`**: Tests round-trip WebSocket latency and document verification.
 * **`get_document_info`**: Retrieves document name, pages list, active page, and selection count.
 * **`get_design_context`**: Extracts a token-efficient semantic design outline of the page (artboards, buttons, cards, inputs, and prototype starting points) without vector noise.
-* **`inspect_node`**: Recursively inspects any node by ID with strict depth capping (max 4) to protect LLM context windows.
+* **`inspect_node`**: Recursively inspects any node by ID with strict depth capping (max 4) to protect LLM context windows, serializing dimensions, layout, fills, text characters, and active `fontName` (family and weight).
 * **`get_selection`**: Inspects details of elements currently highlighted on the canvas.
 
 ### 6. Figma Cloud REST Tools (Headless Access)
@@ -197,6 +199,34 @@ Open Claude Desktop or Cursor and test any of these prompts:
 * **`rest_post_comment`**: Post review feedback directly to a Figma screen pin via REST API.
 * **`rest_get_variables`**: Read Figma Enterprise / Organization Variables (color themes, spacing scales, modes).
 * **`rest_get_components`**: List published component library definitions and documentation links.
+
+---
+
+## 🎨 Niche-Adaptive Typography & Granular Plan Protocol
+
+Figma MCP eliminates arbitrary design decisions and blanket approvals by pairing niche-adaptive typographic systems with strict phased confirmation protocols:
+
+### 1. Niche-Adaptive Typography Engine
+Instead of enforcing rigid, generic fonts across all projects, Figma MCP allows the user or AI to select typography tailored to the exact industry and brand personality:
+
+| Design Niche | Personality & Tone | Typical Headings | Typical Body & Controls |
+| :--- | :--- | :--- | :--- |
+| **Educational Advisory & Legal** | Academic prestige, intellectual weight, institutional trust | **Playfair Display**, **Merriweather**, **Lora** | **Inter**, **Source Sans 3** |
+| **Enterprise SaaS & Fintech** | Modern, geometric precision, high data density | **Plus Jakarta Sans**, **Inter**, **SF Pro** | **Inter**, **Roboto** |
+| **Luxury, Editorial & Fashion** | High elegance, high contrast, bespoke aesthetic | **Cormorant Garamond**, **Bodoni Moda** | **DM Sans**, **Outfit** |
+| **Developer Tools & AI Platforms** | Technical credibility, crisp monospaced hierarchy | **Space Grotesk**, **JetBrains Mono** | **Inter**, **Fira Code** |
+
+With `apply_typography_theme`, the AI can batch-apply a complete font system across an entire artboard hierarchy in a single $< 200\text{ms}$ call with intelligent heading detection (`fontSize >= 20` or title keywords) and automatic weight preloading.
+
+### 2. Granular Step-by-Step Plan Approval Protocol
+Blanket "all-or-nothing" approvals (*"Do you approve this 6-phase redesign? Yes/No"*) create critical blind spots where users cannot approve some phases while adjusting others. 
+
+Figma MCP establishes a structured interaction protocol:
+1. **Concrete Phase Breakdown**: Before modifying the canvas, the AI breaks down the plan into explicit phases with targeted node IDs, exact layout adjustments, and typographic changes.
+2. **Per-Phase Confirmation**: The user confirms, tweaks, or skips each phase individually using interactive multi-part prompts, ensuring full human-in-the-loop control over the Figma canvas.
+
+### 3. Unthrottled Web Worker Keep-Alive Bridge
+To prevent Chromium/Electron background tab throttling when Figma Desktop or the OS window loses focus, the companion plugin runs an isolated Web Worker heartbeat loop. This guarantees that WebSocket connections to `ws://localhost:3055` remain permanently alive with zero disconnections.
 
 ---
 
