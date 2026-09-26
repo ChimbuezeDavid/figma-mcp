@@ -1,98 +1,59 @@
 # Figma MCP — AI-Native UI/UX & Prototyping Engine
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![MCP Protocol](https://img.shields.io/badge/Protocol-Model%20Context%20Protocol-green.svg)](https://modelcontextprotocol.io/)
-[![Figma Plugin API](https://img.shields.io/badge/Figma-Plugin%20API%201.0-purple.svg)](https://www.figma.com/plugin-docs/)
-[![TypeScript](https://img.shields.io/badge/TypeScript-5.4-blue.svg)](https://www.typescriptlang.org/)
+<p align="center">
+  <img src="https://img.shields.io/badge/License-MIT-blue.svg?style=flat-square" alt="License: MIT" />
+  <img src="https://img.shields.io/badge/Protocol-Model%20Context%20Protocol-22c55e.svg?style=flat-square" alt="MCP Protocol" />
+  <img src="https://img.shields.io/badge/Figma-Plugin%20API%201.0-a855f7.svg?style=flat-square" alt="Figma API" />
+  <img src="https://img.shields.io/badge/TypeScript-5.4-3178c6.svg?style=flat-square" alt="TypeScript" />
+  <img src="https://img.shields.io/badge/Tools-39%20Production%20Tools-f59e0b.svg?style=flat-square" alt="39 Tools" />
+</p>
 
-An enterprise-grade **Model Context Protocol (MCP)** server and companion **Figma Desktop Plugin** that transforms AI assistants (Claude, Cursor, Antigravity) into autonomous, production-ready UI/UX designers and interactive prototyping engineers.
-
----
-
-## 🎯 The Problem
-
-While Large Language Models (LLMs) can generate code and draft wireframes, AI-assisted design in Figma has historically failed due to five critical bottlenecks:
-
-```
-┌────────────────────────────────────────────────────────────────────────────────────────┐
-│                               THE 5 DESIGN BOTTLENECKS                                 │
-├────────────────────────────────────────────────────────────────────────────────────────┤
-│ 1. The "Read-Only" API Barrier                                                         │
-│    Figma's cloud REST API is strictly read-only for canvas graphics. It cannot create │
-│    frames, render vectors, configure AutoLayout, or wire prototypes on an active canvas.│
-│                                                                                        │
-│ 2. The Multi-Roundtrip "Latency Explosion"                                              │
-│    Building a single screen via individual tool calls (create_frame -> create_rect...) │
-│    requires 100+ roundtrips, exhausting context windows and causing timeout failures.   │
-│                                                                                        │
-│ 3. The "AI Slop" & HCI Deficiency                                                      │
-│    LLMs produce amateur visual outputs: littering buttons with emojis, uncalibrated     │
-│    line heights that clip text, arbitrary spacing (13px, 27px), and tiny touch targets  │
-│    (< 44px) that violate Apple HIG, Google Material, and WCAG accessibility standards. │
-│                                                                                        │
-│ 4. The "Happy-Path Only" Illusion (No UX Depth)                                        │
-│    AI generates exclusively the "ideal" state with perfect mock data. Real users spend │
-│    50% of their time in empty states, loading skeletons, error screens, and edge cases. │
-│                                                                                        │
-│ 5. Dead-End Journeys & Missing Affordances                                             │
-│    AI outputs isolated, static screens that trap users without back affordances, lacks  │
-│    tactile interactive states (Hover, Pressed, Focus Rings), and uses vague CTAs.      │
-└────────────────────────────────────────────────────────────────────────────────────────┘
-```
+<p align="center">
+  An enterprise-grade <b>Model Context Protocol (MCP)</b> server and companion <b>Figma Desktop Plugin</b> that transforms AI assistants into autonomous UI/UX architects, design systems engineers, and interactive prototyping specialists.
+</p>
 
 ---
 
-## 💡 The Solution
+## ⚡ The Challenge & The Solution
 
-This project solves all five bottlenecks with a unified **Dual-Transport Architecture**, an **Atomic Declarative UI Engine**, an **Enterprise Design Guardian**, and a **Cognitive UX Intelligence Layer**:
+Traditional AI design tools produce "Dribbble-grade slop"—glossy, unvalidated happy-path screenshots that fail in real product engineering. Figma MCP was built from the ground up to solve the core architectural and usability gaps in AI-generated design:
 
-```
-┌────────────────────────────────────────────────────────────────────────────────────────┐
-│                              THE ARCHITECTURAL SOLUTION                                │
-├────────────────────────────────────────────────────────────────────────────────────────┤
-│ 1. Dual-Transport Canvas Bridge                                                        │
-│    Pairs standard STDIO (JSON-RPC) for AI clients with a high-speed local WebSocket    │
-│    bridge (ws://localhost:3055) to a native desktop plugin with 100% canvas write API. │
-│                                                                                        │
-│ 2. Declarative Tree Engine (`generate_ui_tree`)                                        │
-│    Compiles an entire nested screen hierarchy with AutoLayout, typography, colors, and │
-│    semantic tags in a single atomic payload in under 200ms.                             │
-│                                                                                        │
-│ 3. Enterprise Design Guardian & HCI Engine                                             │
-│    - Zero-Emoji Sanitizer: Strips emojis and routes to vector SVG icons.               │
-│    - Intelligent Typography: Auto-calibrates leading (1.15x-1.5x) and optical tracking.│
-│    - 8pt Spatial Grid: Snaps all paddings, gaps, and sizes to 4pt/8pt rhythm.           │
-│    - Fitts's Law Enforcer: Clamps all clickable targets to >= 44x44px.                 │
-│                                                                                        │
-│ 4. The "5 States of UI" Engine (`generate_state_matrix`)                              │
-│    Generates Ideal, Empty Onboarding, Loading Skeleton Shimmer, Empathetic Error with  │
-│    1-click retry, and Partial/Boundary stress-test states in one call.                 │
-│                                                                                        │
-│ 5. Cognitive Psychology & Journey Continuity                                          │
-│    - `audit_ux_heuristics`: Scores Hick's Law, Fitts's Law, Miller's Law, Jakob's Law.│
-│    - `validate_user_journey`: Detects orphan screens, dead-end loops, & unsafe actions.│
-│    - `generate_interactive_variants`: Creates Component Sets with Hover, Press, & Ring.│
-│    - `lint_ux_microcopy`: Eliminates Lorem Ipsum & ambiguous CTAs with empathetic copy.│
-└────────────────────────────────────────────────────────────────────────────────────────┘
-```
+| Challenge | Traditional AI & Cloud API Limitation | The Figma MCP Solution |
+| :--- | :--- | :--- |
+| **1. The "Read-Only" API Barrier** | Figma's cloud REST API is strictly **read-only** for canvas graphics. It cannot create frames, render vectors, configure AutoLayout, or wire prototypes on an active canvas. | **Dual-Transport Bidirectional Bridge**<br>Pairs STDIO JSON-RPC with a local loopback WebSocket (`ws://localhost:3055`) to a desktop plugin with 100% write access to the native `figma.*` engine. |
+| **2. Multi-Roundtrip Latency Explosion** | Generating a single screen via primitive calls (`create_frame` $\rightarrow$ `create_rectangle`...) requires 100+ roundtrips, exhausting context windows and causing timeout crashes. | **Declarative Atomic Tree (`generate_ui_tree`)**<br>Compiles an entire nested screen hierarchy with AutoLayout, typography, colors, and semantic tags in a single payload in $< 200\text{ms}$. |
+| **3. "AI Slop" & HCI Deficiency** | LLMs produce amateur visual outputs: buttons littered with emojis, uncalibrated leading that clips text, arbitrary spacing (`13px`, `27px`), and tiny inaccessible touch targets ($< 44\text{px}$). | **Enterprise Design Guardian & HCI Engine**<br>Automated zero-emoji sanitizer, 8pt spatial grid snapping, intelligent proportional typography leading/tracking, and Apple HIG 44px minimum touch target enforcement. |
+| **4. "Happy-Path Only" (No UX Depth)** | AI generates exclusively the "ideal" state with perfect mock data. Real users spend 50% of their time in empty onboarding states, loading skeletons, error screens, and edge cases. | **The "5 States of UI" Engine (`generate_state_matrix`)**<br>Instantly generates Ideal, Empty Onboarding, Loading Skeleton Shimmer, Empathetic Error with 1-click retry, and Partial/Boundary stress-test states. |
+| **5. Dead-End Journeys & Missing Affordances** | AI outputs isolated, static screens that trap users without back affordances, lacks tactile interactive states (Hover, Pressed, Focus Rings), and uses vague CTAs (*"Submit"*). | **Cognitive Psychology & Journey Validator**<br>Scores screens against Hick's, Fitts's, Miller's, and Jakob's laws (`audit_ux_heuristics`), detects dead ends (`validate_user_journey`), and generates accessible focus rings (`generate_interactive_variants`). |
 
 ---
 
 ## 🏗️ Architecture
 
-```
-┌─────────────────────────┐          STDIO          ┌──────────────────────────┐
-│   AI Coding Assistant   │ ◄─────────────────────► │   Node.js MCP Server     │
-│ (Antigravity / Claude)  │                         │       (figma-mcp CLI)    │
-└─────────────────────────┘                         └────────────┬─────────────┘
-                                                                 │
-                                                       WebSocket │ ws://localhost:3055
-                                                                 ▼
-┌─────────────────────────┐     Plugin API (Canvas)  ┌──────────────────────────┐
-│   Figma Canvas Engine   │ ◄──────────────────────► │   Figma Desktop Plugin   │
-│  (Shapes, AutoLayout,   │                          │  (dist/figma-companion) │
-│   Prototype Reactions)  │                          └──────────────────────────┘
-└─────────────────────────┘
+```mermaid
+flowchart LR
+    subgraph AI["AI Client / IDE Environment"]
+        Agent["AI Assistant<br/>(Claude Desktop / Cursor / Antigravity)"]
+    end
+
+    subgraph Server["Figma MCP Core"]
+        MCPServer["Node.js MCP Server<br/>(39 Tools + 3 Resources)"]
+        Bridge["WebSocket Bridge Server<br/>(ws://localhost:3055)"]
+    end
+
+    subgraph Desktop["Figma Desktop Sandbox"]
+        Plugin["Figma Companion Plugin<br/>(dist-release/figma-companion-plugin)"]
+        Canvas["Native Figma Canvas Engine<br/>(AutoLayout, Typography, Prototyping)"]
+    end
+
+    Agent <--"STDIO (JSON-RPC)"--> MCPServer
+    MCPServer <--> Bridge
+    Bridge <--"Local Loopback (ws://)"--> Plugin
+    Plugin <--"Figma Plugin API (figma.*)"--> Canvas
+
+    style AI fill:#0f172a,stroke:#38bdf8,stroke-width:2px,color:#f8fafc
+    style Server fill:#0f172a,stroke:#818cf8,stroke-width:2px,color:#f8fafc
+    style Desktop fill:#0f172a,stroke:#a855f7,stroke-width:2px,color:#f8fafc
 ```
 
 1. **MCP Server (`packages/mcp-server`)**: Communicates over standard `STDIO` with LLM clients, exposing **39 specialized design and UX tools**, while hosting a dual-stack local loopback WebSocket server on port `3055`.
@@ -100,17 +61,18 @@ This project solves all five bottlenecks with a unified **Dual-Transport Archite
 
 ---
 
-## ⚡ 60-Second Quickstart (For End Users)
+## ⚡ 60-Second Quickstart
 
-### 1. Load Companion Plugin in Figma Desktop
+### Step 1: Load Companion Plugin in Figma Desktop
 1. Download or extract **[`dist-release/figma-companion-plugin.zip`](./dist-release/figma-companion-plugin.zip)** (17 KB standalone bundle).
-2. In Figma Desktop, open any file $\rightarrow$ right-click canvas $\rightarrow$ **Plugins** $\rightarrow$ **Development** $\rightarrow$ **"Import plugin from manifest..."**.
+2. In Figma Desktop, open any design file $\rightarrow$ right-click canvas $\rightarrow$ **Plugins** $\rightarrow$ **Development** $\rightarrow$ **"Import plugin from manifest..."**.
 3. Select `manifest.json` from the extracted folder.
 4. Press `Ctrl + Alt + P` (Windows) or `Cmd + Opt + P` (Mac) to run the plugin.
 
-### 2. Configure Your AI Client
+### Step 2: Connect Your AI Assistant
 
-#### Claude Desktop (`claude_desktop_config.json`)
+#### Claude Desktop
+Add to your `claude_desktop_config.json`:
 ```json
 {
   "mcpServers": {
@@ -122,7 +84,8 @@ This project solves all five bottlenecks with a unified **Dual-Transport Archite
 }
 ```
 
-#### Cursor (`.cursor/mcp.json`)
+#### Cursor IDE
+Add to `.cursor/mcp.json`:
 ```json
 {
   "mcpServers": {
@@ -142,7 +105,7 @@ This project solves all five bottlenecks with a unified **Dual-Transport Archite
 
 ## 🛠️ Complete Toolset Reference (39 Tools)
 
-### 🧠 1. UX Intelligence & Cognitive Architecture (New)
+### 🧠 1. UX Intelligence & Cognitive Architecture
 * **`generate_state_matrix`**: Generates the **5 Essential States of UI** (*Ideal, Empty Onboarding, Loading Skeleton Shimmer, Empathetic Error with 1-click retry, and Partial/Boundary Stress Test*) organized neatly inside a labeled Section or Component Set.
 * **`audit_ux_heuristics`**: Scores screens against empirical cognitive psychology:
   * **Hick’s Law:** Calculates decision latency ($T = b \log_2(n+1)$) and flags choice overload ($> 7\pm2$ choices) or competing primary CTAs.
@@ -152,8 +115,6 @@ This project solves all five bottlenecks with a unified **Dual-Transport Archite
 * **`validate_user_journey`**: Traverses prototype interaction noodles across artboards to detect **orphan screens** (unlinked artboards), **dead-end screens** (trapped users without back or exit affordance), and **unprotected destructive actions** (lacking confirmation dialogs).
 * **`generate_interactive_variants`**: Creates production-ready Figma Component Sets with **Default, Hover, Pressed, Focused (WCAG 2.4.7 accessible focus ring), and Disabled** states, pre-wired with `whileHover` and `whilePress` Smart Animate transitions.
 * **`lint_ux_microcopy`**: Audits UX writing anti-patterns (Lorem Ipsum, ambiguous CTAs like *"Submit"*, robotic blaming errors like *"Invalid input"*), providing empathetic, high-converting copy recommendations.
-
----
 
 ### 🎨 2. Declarative Generation & Design Guardian
 * **`generate_ui_tree`**: Generates full hierarchical screens with AutoLayout, typography, colors, and tagged interactive elements in a single atomic call:
@@ -166,8 +127,6 @@ This project solves all five bottlenecks with a unified **Dual-Transport Archite
 * **8pt Spatial Grid**: Automatic snapping of margins, paddings, and gap dimensions.
 * **Touch Target Enforcer**: Guarantees a minimum $44\times44\text{px}$ bounding box for interactive elements (Apple HIG & Google Material compliance).
 
----
-
 ### ⚡ 3. Interactive Prototyping & Flow Engine
 * **`set_prototype_interaction`**: Wires interactive transitions between elements:
   * **Triggers**: `ON_CLICK`, `ON_HOVER`, `ON_PRESS`, `AFTER_TIMEOUT`.
@@ -177,8 +136,6 @@ This project solves all five bottlenecks with a unified **Dual-Transport Archite
 * **`get_prototype_connections`**: Audits all flow starting points and prototype connection noodles on the page.
 * **`batch_link_prototype`**: Wires multiple screen transitions across a user journey in one call.
 * **`set_overlay_interaction`**: Configures modal dialogs, slide-over panels, and dropdown overlays with customizable backdrops, animations, and click-outside dismissal rules.
-
----
 
 ### 📐 4. Canvas Primitives, Components & Polish
 * **`create_frame`**: Creates container frames or artboards.
@@ -202,8 +159,6 @@ This project solves all five bottlenecks with a unified **Dual-Transport Archite
 * **`get_document_tokens`**: Extracts local color paint styles, text typography styles, and effect styles directly from the document.
 * **`export_node_image`**: Exports 2x Retina PNG snapshots as base64 for visual verification.
 
----
-
 ### 🔍 5. Canvas Diagnostics & Semantic Inspection
 * **`get_figma_status`**: Checks whether the Figma Desktop companion plugin is connected.
 * **`ping_figma`**: Tests round-trip WebSocket latency and document verification.
@@ -211,8 +166,6 @@ This project solves all five bottlenecks with a unified **Dual-Transport Archite
 * **`get_design_context`**: Extracts a token-efficient semantic design outline of the page (artboards, buttons, cards, inputs, and prototype starting points) without vector noise.
 * **`inspect_node`**: Recursively inspects any node by ID with strict depth capping (max 4) to protect LLM context windows.
 * **`get_selection`**: Inspects details of elements currently highlighted on the canvas.
-
----
 
 ### ☁️ 6. Figma Cloud REST Tools (Headless Access)
 *Optional: Requires `FIGMA_ACCESS_TOKEN` for cloud inspection without the desktop app:*
@@ -250,7 +203,7 @@ npm install
 # 2. Build monorepo workspaces
 npm run build
 
-# 3. Clean port 3055 if locked by a background process
+# 3. Clean port 3055 if locked by an orphaned background process
 npm run clean:port
 
 # 4. Package standalone plugin & zip
