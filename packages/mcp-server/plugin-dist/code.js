@@ -1657,10 +1657,7 @@
         type: "NODE",
         destinationId: params.destinationNodeId,
         navigation: "OVERLAY",
-        transition,
-        overlayPositionType: params.position || "CENTER",
-        closeOnClickOutside: params.closeOnClickOutside !== false,
-        overlayBackground
+        transition
       };
       const reaction = {
         trigger,

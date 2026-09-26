@@ -261,9 +261,6 @@ export async function handleSetOverlayInteraction(params: OverlayInteractionPara
     destinationId: params.destinationNodeId,
     navigation: "OVERLAY",
     transition,
-    overlayPositionType: params.position || "CENTER",
-    closeOnClickOutside: params.closeOnClickOutside !== false,
-    overlayBackground,
   };
 
   const reaction: any = {
