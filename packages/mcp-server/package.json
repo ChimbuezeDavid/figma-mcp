@@ -1,5 +1,5 @@
 {
-  "name": "figma-mcp",
+  "name": "@chimbuezedavid/figma-mcp",
   "version": "1.0.0",
   "type": "module",
   "description": "Enterprise Model Context Protocol (MCP) server & companion plugin for AI-driven UI/UX design & prototyping in Figma",

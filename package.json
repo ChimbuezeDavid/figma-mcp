@@ -11,7 +11,7 @@
     "build": "npm run build --workspaces",
     "package": "node scripts/package-release.js",
     "clean:port": "powershell -Command \"$p = (Get-NetTCPConnection -LocalPort 3055 -ErrorAction SilentlyContinue).OwningProcess; if ($p) { Stop-Process -Id $p -Force; Write-Host 'Port 3055 freed' } else { Write-Host 'Port 3055 is already free' }\"",
-    "dev:server": "npm --workspace=figma-mcp run dev",
+    "dev:server": "npm --workspace=@chimbuezedavid/figma-mcp run dev",
     "build:plugin": "npm --workspace=@figma-mcp/plugin run build",
     "watch:plugin": "npm --workspace=@figma-mcp/plugin run watch"
   },
