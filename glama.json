@@ -1,0 +1,17 @@
+{
+  "$schema": "https://glama.ai/mcp/schemas/server.json",
+  "name": "figma-mcp",
+  "description": "Autonomous UI/UX design, interactive prototyping, and 5-state generation directly inside live Figma Desktop via a real-time companion plugin.",
+  "maintainers": [
+    "ChimbuezeDavid"
+  ],
+  "status": "stable",
+  "keywords": [
+    "figma",
+    "ui-ux",
+    "prototyping",
+    "design-systems",
+    "accessibility",
+    "mcp"
+  ]
+}
