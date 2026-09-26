@@ -63,13 +63,14 @@ flowchart LR
 
 ## ⚡ 60-Second Quickstart
 
-### Step 1: Load Companion Plugin in Figma Desktop
+### Step 1: Install Companion Plugin in Figma Desktop
 1. Download or extract **[`dist-release/figma-companion-plugin.zip`](./dist-release/figma-companion-plugin.zip)** (17 KB standalone bundle).
 2. In Figma Desktop, open any design file $\rightarrow$ right-click canvas $\rightarrow$ **Plugins** $\rightarrow$ **Development** $\rightarrow$ **"Import plugin from manifest..."**.
 3. Select `manifest.json` from the extracted folder.
-4. Press `Ctrl + Alt + P` (Windows) or `Cmd + Opt + P` (Mac) to run the plugin.
+4. Press `Ctrl + Alt + P` (Windows) or `Cmd + Opt + P` (Mac) to launch the plugin window.
 
-### Step 2: Connect Your AI Assistant
+### Step 2: Configure Your AI Assistant
+Your AI client spawns the MCP server automatically in the background using `npx -y figma-mcp`—no manual terminal setup required.
 
 #### Claude Desktop
 Add to your `claude_desktop_config.json`:
@@ -101,11 +102,31 @@ Add to `.cursor/mcp.json`:
 * **Command:** `npx -y figma-mcp`
 * **Transport:** `STDIO`
 
+### Step 3: Verify the Live Bridge Connection
+* In Figma Desktop, look at the **Figma MCP Bridge** plugin window.
+* When your AI client starts, the status indicator will automatically switch to:
+  ```
+  ● Connected (ws://localhost:3055)
+  ```
+* Your active document name and page will synchronize with the server.
+
+### Step 4: Your First Prompts (Copy & Paste)
+Open Claude Desktop or Cursor and test any of these prompts:
+
+* **Generate a Full AutoLayout Screen:**
+  > *"Create a mobile crypto wallet dashboard in Figma using AutoLayout, 8pt spacing, and dark mode."*
+* **Generate the 5 Essential UX States:**
+  > *"Generate the 5 essential UI states for a 'Payment Methods' card using generate_state_matrix."*
+* **Conduct a Cognitive & HCI Audit:**
+  > *"Audit the active canvas with audit_ux_heuristics and report any Hick's or Fitts's Law violations."*
+* **End-to-End Autonomous UX Architecture:**
+  > *"Use the architect_ux_experience prompt to architect a complete 'Subscription Management' user journey with full interactive variants and flow transitions."*
+
 ---
 
 ## 🛠️ Complete Toolset Reference (39 Tools)
 
-### 🧠 1. UX Intelligence & Cognitive Architecture
+### 1. UX Intelligence & Cognitive Architecture
 * **`generate_state_matrix`**: Generates the **5 Essential States of UI** (*Ideal, Empty Onboarding, Loading Skeleton Shimmer, Empathetic Error with 1-click retry, and Partial/Boundary Stress Test*) organized neatly inside a labeled Section or Component Set.
 * **`audit_ux_heuristics`**: Scores screens against empirical cognitive psychology:
   * **Hick’s Law:** Calculates decision latency ($T = b \log_2(n+1)$) and flags choice overload ($> 7\pm2$ choices) or competing primary CTAs.
@@ -116,7 +137,7 @@ Add to `.cursor/mcp.json`:
 * **`generate_interactive_variants`**: Creates production-ready Figma Component Sets with **Default, Hover, Pressed, Focused (WCAG 2.4.7 accessible focus ring), and Disabled** states, pre-wired with `whileHover` and `whilePress` Smart Animate transitions.
 * **`lint_ux_microcopy`**: Audits UX writing anti-patterns (Lorem Ipsum, ambiguous CTAs like *"Submit"*, robotic blaming errors like *"Invalid input"*), providing empathetic, high-converting copy recommendations.
 
-### 🎨 2. Declarative Generation & Design Guardian
+### 2. Declarative Generation & Design Guardian
 * **`generate_ui_tree`**: Generates full hierarchical screens with AutoLayout, typography, colors, and tagged interactive elements in a single atomic call:
   * **Presets**: `iPhone 16`, `iPhone 16 Pro Max`, `Android`, `Desktop`, `Tablet`.
   * **Elements**: `frame`, `card`, `button`, `text`, `divider`, `spacer`.
@@ -127,7 +148,7 @@ Add to `.cursor/mcp.json`:
 * **8pt Spatial Grid**: Automatic snapping of margins, paddings, and gap dimensions.
 * **Touch Target Enforcer**: Guarantees a minimum $44\times44\text{px}$ bounding box for interactive elements (Apple HIG & Google Material compliance).
 
-### ⚡ 3. Interactive Prototyping & Flow Engine
+### 3. Interactive Prototyping & Flow Engine
 * **`set_prototype_interaction`**: Wires interactive transitions between elements:
   * **Triggers**: `ON_CLICK`, `ON_HOVER`, `ON_PRESS`, `AFTER_TIMEOUT`.
   * **Navigations**: `NAVIGATE`, `OVERLAY`, `SWAP`, `BACK`, `CLOSE`.
@@ -137,7 +158,7 @@ Add to `.cursor/mcp.json`:
 * **`batch_link_prototype`**: Wires multiple screen transitions across a user journey in one call.
 * **`set_overlay_interaction`**: Configures modal dialogs, slide-over panels, and dropdown overlays with customizable backdrops, animations, and click-outside dismissal rules.
 
-### 📐 4. Canvas Primitives, Components & Polish
+### 4. Canvas Primitives, Components & Polish
 * **`create_frame`**: Creates container frames or artboards.
 * **`create_rectangle`**: Creates shapes, cards, or placeholders.
 * **`create_ellipse`**: Creates circular/elliptical shapes (avatars, badges, status dots).
@@ -159,7 +180,7 @@ Add to `.cursor/mcp.json`:
 * **`get_document_tokens`**: Extracts local color paint styles, text typography styles, and effect styles directly from the document.
 * **`export_node_image`**: Exports 2x Retina PNG snapshots as base64 for visual verification.
 
-### 🔍 5. Canvas Diagnostics & Semantic Inspection
+### 5. Canvas Diagnostics & Semantic Inspection
 * **`get_figma_status`**: Checks whether the Figma Desktop companion plugin is connected.
 * **`ping_figma`**: Tests round-trip WebSocket latency and document verification.
 * **`get_document_info`**: Retrieves document name, pages list, active page, and selection count.
@@ -167,7 +188,7 @@ Add to `.cursor/mcp.json`:
 * **`inspect_node`**: Recursively inspects any node by ID with strict depth capping (max 4) to protect LLM context windows.
 * **`get_selection`**: Inspects details of elements currently highlighted on the canvas.
 
-### ☁️ 6. Figma Cloud REST Tools (Headless Access)
+### 6. Figma Cloud REST Tools (Headless Access)
 *Optional: Requires `FIGMA_ACCESS_TOKEN` for cloud inspection without the desktop app:*
 * **`rest_get_file`**: Read full file metadata, version history, components, and document tree from Figma Cloud.
 * **`rest_get_file_nodes`**: Fetch specific node hierarchies by ID from the cloud.
@@ -194,7 +215,7 @@ Add to `.cursor/mcp.json`:
 
 ---
 
-## 🛠️ Local Monorepo Development
+## 💻 Local Monorepo Development
 
 ```bash
 # 1. Install dependencies
@@ -215,7 +236,7 @@ npm run dev:server
 
 ---
 
-## 🌐 Dual Transport & Cloud Deployment
+## 🌐 Deployment & Transport Modes
 
 ### 1. Local Mode (Default STDIO)
 Used by Claude Desktop, Cursor, and Antigravity:
