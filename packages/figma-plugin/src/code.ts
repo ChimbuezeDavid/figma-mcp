@@ -194,7 +194,8 @@ figma.ui.onmessage = async (msg: {
 
       // Step 4: Declarative Screen Generator
       case "generate_ui_tree": {
-        result = await handleGenerateUITree(params as any);
+        const spec = (params as any).spec || (params as any);
+        result = await handleGenerateUITree(spec);
         break;
       }
 

@@ -1,6 +1,6 @@
 import { createSolidPaint, getContrastRatio } from "../helpers/color";
 import { ensureFontLoaded } from "../helpers/font";
-import { sanitizeUiText, applyIntelligentTypography } from "../helpers/typography";
+import { sanitizeUiText, applyIntelligentTypography, STANDARD_TYPE_SCALE } from "../helpers/typography";
 
 export interface UINodeSpec {
   type: "frame" | "rectangle" | "text" | "button" | "card" | "divider" | "spacer";
@@ -16,6 +16,8 @@ export interface UINodeSpec {
   height?: number | "hug" | "fill";
   alignItems?: "min" | "center" | "max" | "space_between";
   crossAlignItems?: "min" | "center" | "max" | "baseline";
+  wrap?: boolean;
+  counterAxisSpacing?: number;
 
   // Appearance
   fill?: string;
@@ -25,6 +27,19 @@ export interface UINodeSpec {
   clipsContent?: boolean;
 
   // Typography (for text or button)
+  variant?:
+    | "display-2xl"
+    | "display-xl"
+    | "display-lg"
+    | "h1"
+    | "h2"
+    | "h3"
+    | "subheading"
+    | "body-lg"
+    | "body-md"
+    | "body-sm"
+    | "caption"
+    | "badge";
   text?: string;
   fontSize?: number;
   fontWeight?: string;
@@ -75,7 +90,7 @@ export async function applyImageOrColor(
         node.fills = [{ type: "IMAGE", scaleMode: "FILL", imageHash: image.hash }];
         return;
       } else if (imageUrl.startsWith("data:")) {
-        const base64Data = imageUrl.split(",")[1] || imageUrl;
+        const base64Data = (imageUrl.split(",")[1] || imageUrl).replace(/\s+/g, "");
         const bytes = figma.base64Decode(base64Data);
         const image = figma.createImage(bytes);
         node.fills = [{ type: "IMAGE", scaleMode: "FILL", imageHash: image.hash }];
@@ -89,7 +104,8 @@ export async function applyImageOrColor(
   if (fallbackColor) {
     node.fills = [createSolidPaint(fallbackColor)];
   } else {
-    node.fills = [];
+    // Provide a visible warm neutral institutional fill instead of leaving node transparent
+    node.fills = [createSolidPaint("#EDE8DC")];
   }
 }
 
@@ -107,9 +123,11 @@ export async function handleGenerateUITree(spec: ScreenSpec) {
   }
 
   // 2. Determine root frame dimensions
+  const parsedWidth = typeof spec.width === "number" ? spec.width : 393;
+  const parsedHeight = typeof spec.height === "number" ? spec.height : 900;
   const dims = spec.preset && PRESET_DIMENSIONS[spec.preset]
     ? PRESET_DIMENSIONS[spec.preset]
-    : { width: spec.width || 393, height: spec.height || 852 };
+    : { width: parsedWidth, height: parsedHeight };
 
   const rootFrame = figma.createFrame();
   rootFrame.name = spec.name || "Screen";
@@ -183,6 +201,12 @@ async function buildNode(
         if (spec.spacing !== undefined) frame.itemSpacing = spec.spacing;
         applyPadding(frame, spec.padding ?? (spec.type === "card" ? 16 : 0));
         applyAlignment(frame, spec.alignItems, spec.crossAlignItems);
+        if (spec.wrap) {
+          (frame as any).layoutWrap = "WRAP";
+          if (spec.counterAxisSpacing !== undefined) {
+            (frame as any).counterAxisSpacing = spec.counterAxisSpacing;
+          }
+        }
       }
 
       // Sizing
@@ -322,13 +346,19 @@ async function buildNode(
     }
 
     case "text": {
+      let weight = spec.fontWeight || "Regular";
+      let fontSize = spec.fontSize || 15;
+      if (spec.variant && STANDARD_TYPE_SCALE[spec.variant]) {
+        fontSize = spec.fontSize || STANDARD_TYPE_SCALE[spec.variant].size;
+        weight = spec.fontWeight || STANDARD_TYPE_SCALE[spec.variant].defaultWeight;
+      }
+
       const font = await ensureFontLoaded(
         spec.fontFamily || "Inter",
-        spec.fontWeight || "Regular"
+        weight
       );
       const textNode = figma.createText();
       textNode.fontName = font;
-      const fontSize = spec.fontSize || 15;
       textNode.fontSize = fontSize;
 
       // Strip emojis from text
@@ -336,7 +366,7 @@ async function buildNode(
       textNode.characters = cleanText;
 
       // Apply intelligent leading and optical tracking
-      applyIntelligentTypography(textNode, fontSize);
+      applyIntelligentTypography(textNode, fontSize, false, spec.variant);
 
       textNode.fills = [createSolidPaint(spec.textColor || spec.fill || "#111827")];
       textNode.name = spec.name || (cleanText ? cleanText.slice(0, 20) : "Text");
@@ -353,14 +383,15 @@ async function buildNode(
       } else if (typeof spec.width === "number") {
         textNode.resize(spec.width, textNode.height);
         textNode.textAutoResize = "HEIGHT";
+      } else if (parent.layoutMode === "VERTICAL" && parent.width > 60) {
+        // Anti-overflow determinism: In any vertical container (cards, sections, columns),
+        // text must wrap to container width instead of overflowing horizontally across boundaries.
+        const innerW = Math.max(60, parent.width - ((parent.paddingLeft || 0) + (parent.paddingRight || 0)));
+        textNode.resize(innerW, textNode.height);
+        textNode.textAutoResize = "HEIGHT";
+        textNode.layoutAlign = "STRETCH";
       } else {
-        // Auto-wrap long text if parent is vertical with bounded width
-        if (parent.layoutMode === "VERTICAL" && textNode.characters.length > 40 && parent.width > 120) {
-          const innerW = Math.max(120, parent.width - ((parent.paddingLeft || 0) + (parent.paddingRight || 0)));
-          textNode.resize(innerW, textNode.height);
-          textNode.textAutoResize = "HEIGHT";
-          textNode.layoutAlign = "STRETCH";
-        }
+        textNode.textAutoResize = "WIDTH_AND_HEIGHT";
       }
 
       if (spec.tag) tagRegistry[spec.tag] = textNode.id;
@@ -494,8 +525,12 @@ function applyLayoutSizing(
 
 function collectFonts(specs: UINodeSpec[], set: Set<string>) {
   for (const s of specs) {
-    if (s.fontFamily || s.fontWeight) {
-      set.add(`${s.fontFamily || "Inter"}::${s.fontWeight || "Regular"}`);
+    let weight = s.fontWeight || "Regular";
+    if (s.variant && STANDARD_TYPE_SCALE[s.variant] && !s.fontWeight) {
+      weight = STANDARD_TYPE_SCALE[s.variant].defaultWeight;
+    }
+    if (s.fontFamily || s.fontWeight || s.variant) {
+      set.add(`${s.fontFamily || "Inter"}::${weight}`);
     }
     if (s.children) {
       collectFonts(s.children, set);

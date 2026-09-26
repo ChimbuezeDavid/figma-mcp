@@ -4,3 +4,10 @@ dist/
 *.log
 .env
 .env.local
+
+# Scratch, local artifacts, and generated data specs
+*.txt
+compressed_images.json
+*spec*.json
+preview*.png
+*preview*.png

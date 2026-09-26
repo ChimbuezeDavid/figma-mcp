@@ -6,6 +6,7 @@ import { logger, logAudit } from "./logger.js";
 export class FigmaBridge {
   private wss: WebSocketServer | null = null;
   private activeClient: WebSocket | null = null;
+  private heartbeatTimer: NodeJS.Timeout | null = null;
   private pendingRequests = new Map<
     string,
     {
@@ -20,36 +21,78 @@ export class FigmaBridge {
 
   constructor(private port: number = 3055) {}
 
-  public start(): Promise<void> {
+  public async start(): Promise<void> {
+    const host = process.env.FIGMA_BRIDGE_HOST || "0.0.0.0";
+    let attempts = 0;
+    const maxAttempts = 5;
+
+    while (attempts < maxAttempts) {
+      try {
+        await this.bindServer(host);
+        this.startHeartbeatLoop();
+        return;
+      } catch (err: any) {
+        attempts++;
+        if (err.code === "EADDRINUSE" && attempts < maxAttempts) {
+          logger.warn(
+            { port: this.port, attempt: attempts },
+            `Port ${this.port} is busy or in TIME_WAIT. Retrying in 1.5s...`
+          );
+          await new Promise((r) => setTimeout(r, 1500));
+        } else {
+          logger.error({ err, attempts }, "Failed to start Figma Bridge WebSocket server");
+          throw err;
+        }
+      }
+    }
+  }
+
+  private bindServer(host: string): Promise<void> {
     return new Promise((resolve, reject) => {
       try {
-        const host = process.env.FIGMA_BRIDGE_HOST || "0.0.0.0";
-        this.wss = new WebSocketServer({ port: this.port, host });
+        const wss = new WebSocketServer({ port: this.port, host });
 
-        this.wss.on("listening", () => {
+        wss.on("listening", () => {
+          this.wss = wss;
           logger.info({ port: this.port, host }, "Figma Bridge WebSocket server listening");
           resolve();
         });
 
-        this.wss.on("connection", (ws) => {
+        wss.on("connection", (ws) => {
+          (ws as any).isAlive = true;
           logger.info("Figma Companion Plugin connected over WebSocket");
           this.activeClient = ws;
           this.status.connected = true;
 
+          // Native ping/pong handler
+          ws.on("pong", () => {
+            (ws as any).isAlive = true;
+          });
+
           ws.on("message", (raw) => {
+            (ws as any).isAlive = true;
             try {
               const msg = JSON.parse(raw.toString());
-              this.handleIncomingMessage(msg);
+              this.handleIncomingMessage(ws, msg);
             } catch (err) {
               logger.error({ err }, "Failed to parse message from Figma plugin");
             }
           });
 
           ws.on("close", (code, reason) => {
-            logger.warn({ code, reason: reason.toString() }, "Figma Companion Plugin disconnected");
+            logger.warn({ code, reason: reason.toString() }, "WebSocket client disconnected");
             if (this.activeClient === ws) {
-              this.activeClient = null;
-              this.status = { connected: false };
+              const remaining = Array.from(this.wss?.clients || []).find(
+                (c) => c !== ws && c.readyState === WebSocket.OPEN
+              );
+              if (remaining) {
+                this.activeClient = remaining;
+                this.status.connected = true;
+                logger.info("Flipped activeClient to remaining open connection");
+              } else {
+                this.activeClient = null;
+                this.status = { connected: false };
+              }
             }
           });
 
@@ -58,15 +101,7 @@ export class FigmaBridge {
           });
         });
 
-        this.wss.on("error", (err: any) => {
-          if (err.code === "EADDRINUSE") {
-            logger.error(
-              { port: this.port },
-              `Port ${this.port} is already in use by an active Figma MCP Server instance (spawned by your IDE/MCP client or background terminal). Terminate that process or configure FIGMA_BRIDGE_PORT.`
-            );
-          } else {
-            logger.error({ err }, "WebSocket server error");
-          }
+        wss.on("error", (err: any) => {
           reject(err);
         });
       } catch (err) {
@@ -75,8 +110,56 @@ export class FigmaBridge {
     });
   }
 
-  private handleIncomingMessage(msg: any) {
-    // Handshake or status update from plugin
+  private startHeartbeatLoop() {
+    if (this.heartbeatTimer) clearInterval(this.heartbeatTimer);
+
+    // Run every 4 seconds to guarantee persistent keep-alive across background tabs & idle periods
+    this.heartbeatTimer = setInterval(() => {
+      if (!this.wss) return;
+
+      for (const client of this.wss.clients) {
+        if (client.readyState === WebSocket.OPEN) {
+          // Low-level protocol ping
+          try {
+            client.ping();
+          } catch (e) {}
+
+          // High-level JSON keep-alive frame
+          try {
+            client.send(JSON.stringify({ type: "bridge_ping", timestamp: Date.now() }));
+          } catch (e) {}
+        }
+      }
+
+      // Check active client health
+      if (this.activeClient && this.activeClient.readyState !== WebSocket.OPEN) {
+        const candidate = Array.from(this.wss.clients).find((c) => c.readyState === WebSocket.OPEN);
+        if (candidate) {
+          this.activeClient = candidate;
+          this.status.connected = true;
+        } else {
+          this.activeClient = null;
+          this.status = { connected: false };
+        }
+      }
+    }, 4000);
+  }
+
+  private handleIncomingMessage(ws: WebSocket, msg: any) {
+    // 1. Keep-Alive / Heartbeat handling
+    if (msg.type === "plugin_heartbeat") {
+      try {
+        ws.send(JSON.stringify({ type: "bridge_pong", timestamp: Date.now() }));
+      } catch (e) {}
+      return;
+    }
+
+    if (msg.type === "bridge_pong") {
+      (ws as any).isAlive = true;
+      return;
+    }
+
+    // 2. Handshake or status update from plugin
     if (msg.type === "plugin_handshake" || msg.type === "status_update") {
       this.status = {
         connected: true,
@@ -90,7 +173,7 @@ export class FigmaBridge {
       return;
     }
 
-    // Response to a pending command
+    // 3. Response to a pending command
     if (msg.id && this.pendingRequests.has(msg.id)) {
       const { resolve, reject, timer, startTime, action } = this.pendingRequests.get(msg.id)!;
       clearTimeout(timer);
@@ -176,6 +259,10 @@ export class FigmaBridge {
   }
 
   public stop(): Promise<void> {
+    if (this.heartbeatTimer) {
+      clearInterval(this.heartbeatTimer);
+      this.heartbeatTimer = null;
+    }
     return new Promise((resolve) => {
       if (this.wss) {
         this.wss.close(() => resolve());

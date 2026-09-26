@@ -145,10 +145,11 @@
   <div id="log-container"></div>
 
   <script>
-    const ENDPOINTS = ["ws://localhost:3055"];
+    const ENDPOINTS = ["ws://127.0.0.1:3055", "ws://localhost:3055"];
     let endpointIndex = 0;
     let ws = null;
     let reconnectTimeout = null;
+    let isConnecting = false;
     let documentInfo = { fileName: "", currentPage: "" };
 
     const statusBadge = document.getElementById("status-badge");
@@ -173,9 +174,17 @@
       div.innerHTML = `<span class="log-time">[${now}]</span> <span class="${typeClass}">${message}</span>`;
       logContainer.appendChild(div);
       logContainer.scrollTop = logContainer.scrollHeight;
+      // Keep activity log manageable
+      while (logContainer.children.length > 50) {
+        logContainer.removeChild(logContainer.firstChild);
+      }
     }
 
     function connectWebSocket() {
+      if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) {
+        return;
+      }
+
       if (reconnectTimeout) {
         clearTimeout(reconnectTimeout);
         reconnectTimeout = null;
@@ -184,25 +193,39 @@
       const currentUrl = ENDPOINTS[endpointIndex];
       document.getElementById("ws-url").textContent = currentUrl;
       setStatus("connecting", "Connecting...");
-      addLog(`Connecting to ${currentUrl}...`);
 
       try {
-        ws = new WebSocket(currentUrl);
+        isConnecting = true;
+        const socket = new WebSocket(currentUrl);
 
-        ws.onopen = () => {
+        socket.onopen = () => {
+          ws = socket;
+          isConnecting = false;
           setStatus("connected", "Connected");
           addLog("Connected to MCP Server bridge", "success");
 
-          // Notify the MCP server of document info
+          // Sync document context immediately
           ws.send(JSON.stringify({
             type: "plugin_handshake",
             payload: documentInfo
           }));
         };
 
-        ws.onmessage = (event) => {
+        socket.onmessage = (event) => {
           try {
             const data = JSON.parse(event.data);
+
+            // Handle server-side ping/pong frames
+            if (data.type === "bridge_ping") {
+              if (socket.readyState === WebSocket.OPEN) {
+                socket.send(JSON.stringify({ type: "bridge_pong", timestamp: Date.now() }));
+              }
+              return;
+            }
+            if (data.type === "bridge_pong") {
+              return;
+            }
+
             if (data && data.id && data.action) {
               addLog(`Cmd: ${data.action}`);
               // Forward request to Figma main thread (code.ts)
@@ -220,32 +243,76 @@
           }
         };
 
-        ws.onclose = () => {
+        socket.onclose = () => {
+          if (ws === socket) ws = null;
+          isConnecting = false;
           setStatus("disconnected", "Disconnected");
-          addLog("Disconnected from " + currentUrl, "error");
-          // Rotate between localhost and 127.0.0.1
+          // Rotate between 127.0.0.1 and localhost
           endpointIndex = (endpointIndex + 1) % ENDPOINTS.length;
-          ws = null;
-          scheduleReconnect();
+          scheduleReconnect(800);
         };
 
-        ws.onerror = (err) => {
-          setStatus("disconnected", "Disconnected");
-          addLog("Socket error on " + currentUrl, "error");
+        socket.onerror = () => {
+          // onError is followed by onClose automatically
         };
       } catch (err) {
+        isConnecting = false;
         setStatus("disconnected", "Disconnected");
-        addLog("Exception: " + err.message, "error");
         endpointIndex = (endpointIndex + 1) % ENDPOINTS.length;
-        scheduleReconnect();
+        scheduleReconnect(1000);
       }
     }
 
-    function scheduleReconnect() {
+    function scheduleReconnect(delay = 1000) {
       if (!reconnectTimeout) {
-        reconnectTimeout = setTimeout(connectWebSocket, 3000);
+        reconnectTimeout = setTimeout(() => {
+          reconnectTimeout = null;
+          connectWebSocket();
+        }, delay);
       }
     }
+
+    // ------------------------------------------------------------------------
+    // UNTHROTTLED BACKGROUND HEARTBEAT WORKER
+    // Web Workers run in an isolated thread and are NOT throttled by Chromium
+    // when Figma is minimized, blurred, or running in the background.
+    // ------------------------------------------------------------------------
+    try {
+      const workerBlob = new Blob([
+        `setInterval(() => { postMessage("pulse"); }, 2500);`
+      ], { type: "application/javascript" });
+      const workerUrl = URL.createObjectURL(workerBlob);
+      const bgWorker = new Worker(workerUrl);
+
+      bgWorker.onmessage = () => {
+        if (!ws || ws.readyState !== WebSocket.OPEN) {
+          connectWebSocket();
+        } else {
+          try {
+            ws.send(JSON.stringify({ type: "plugin_heartbeat", timestamp: Date.now() }));
+          } catch (e) {
+            connectWebSocket();
+          }
+        }
+      };
+    } catch (e) {
+      // Fallback timer if Web Workers are restricted in environment
+      setInterval(() => {
+        if (!ws || ws.readyState !== WebSocket.OPEN) {
+          connectWebSocket();
+        } else {
+          try {
+            ws.send(JSON.stringify({ type: "plugin_heartbeat", timestamp: Date.now() }));
+          } catch (err) {}
+        }
+      }, 2500);
+    }
+
+    // Immediate reconnect triggers
+    window.addEventListener("focus", () => connectWebSocket());
+    document.addEventListener("visibilitychange", () => {
+      if (document.visibilityState === "visible") connectWebSocket();
+    });
 
     // Listen for messages from Figma sandbox (code.ts)
     window.onmessage = (event) => {

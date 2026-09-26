@@ -180,6 +180,8 @@ export async function handleSetAutolayout(params: {
   counterAxisAlignItems?: "MIN" | "CENTER" | "MAX" | "BASELINE";
   primaryAxisSizing?: "FIXED" | "AUTO";
   counterAxisSizing?: "FIXED" | "AUTO";
+  wrap?: boolean;
+  counterAxisSpacing?: number;
 }) {
   const node = figma.getNodeById(params.nodeId);
   if (!node || node.type !== "FRAME") {
@@ -216,6 +218,13 @@ export async function handleSetAutolayout(params: {
     if (params.counterAxisSizing) {
       frame.counterAxisSizingMode = params.counterAxisSizing;
     }
+
+    if (params.wrap !== undefined) {
+      (frame as any).layoutWrap = params.wrap ? "WRAP" : "NO_WRAP";
+    }
+    if (params.counterAxisSpacing !== undefined) {
+      (frame as any).counterAxisSpacing = params.counterAxisSpacing;
+    }
   }
 
   return {
@@ -223,6 +232,8 @@ export async function handleSetAutolayout(params: {
     name: frame.name,
     layoutMode: frame.layoutMode,
     itemSpacing: frame.itemSpacing,
+    layoutWrap: (frame as any).layoutWrap,
+    counterAxisSpacing: (frame as any).counterAxisSpacing,
     padding: {
       top: frame.paddingTop,
       bottom: frame.paddingBottom,
@@ -394,6 +405,12 @@ export async function handleUpdateNode(params: {
   cornerRadius?: number;
   opacity?: number;
   visible?: boolean;
+  layoutAlign?: "INHERIT" | "STRETCH" | "MIN" | "CENTER" | "MAX";
+  layoutGrow?: number;
+  textAutoResize?: "NONE" | "WIDTH_AND_HEIGHT" | "HEIGHT" | "TRUNCATE";
+  primaryAxisAlignItems?: "MIN" | "CENTER" | "MAX" | "SPACE_BETWEEN";
+  counterAxisAlignItems?: "MIN" | "CENTER" | "MAX" | "BASELINE";
+  itemSpacing?: number;
 }) {
   const node = figma.getNodeById(params.nodeId);
   if (!node) throw new Error(`Node '${params.nodeId}' not found.`);
@@ -405,13 +422,16 @@ export async function handleUpdateNode(params: {
   if ("y" in node && params.y !== undefined) (node as any).y = params.y;
 
   if (node.type === "TEXT") {
+    const textNode = node as TextNode;
+    if (textNode.fontName !== figma.mixed) {
+      await ensureFontLoaded(textNode.fontName.family, textNode.fontName.style);
+    } else {
+      await ensureFontLoaded("Inter", "Regular");
+    }
+    if (params.textAutoResize !== undefined) {
+      textNode.textAutoResize = params.textAutoResize;
+    }
     if (params.width !== undefined) {
-      const textNode = node as TextNode;
-      if (textNode.fontName !== figma.mixed) {
-        await ensureFontLoaded(textNode.fontName.family, textNode.fontName.style);
-      } else {
-        await ensureFontLoaded("Inter", "Regular");
-      }
       textNode.textAutoResize = "HEIGHT";
       textNode.resize(params.width, textNode.height);
     }
@@ -419,6 +439,20 @@ export async function handleUpdateNode(params: {
     const currentW = (node as any).width || 100;
     const currentH = (node as any).height || 100;
     (node as any).resize(params.width ?? currentW, params.height ?? currentH);
+  }
+
+  if ("layoutAlign" in node && params.layoutAlign !== undefined) {
+    (node as any).layoutAlign = params.layoutAlign;
+  }
+  if ("layoutGrow" in node && params.layoutGrow !== undefined) {
+    (node as any).layoutGrow = params.layoutGrow;
+  }
+
+  if (node.type === "FRAME") {
+    const frame = node as FrameNode;
+    if (params.primaryAxisAlignItems) frame.primaryAxisAlignItems = params.primaryAxisAlignItems;
+    if (params.counterAxisAlignItems) frame.counterAxisAlignItems = params.counterAxisAlignItems;
+    if (params.itemSpacing !== undefined) frame.itemSpacing = params.itemSpacing;
   }
 
   if (params.image && "fills" in node) {

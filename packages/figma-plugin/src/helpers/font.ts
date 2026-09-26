@@ -9,16 +9,34 @@ export async function ensureFontLoaded(family: string = "Inter", style: string =
     return { family, style };
   }
 
-  try {
-    const fontName: FontName = { family, style };
-    await figma.loadFontAsync(fontName);
-    loadedFonts.add(key);
-    return fontName;
-  } catch (error) {
-    console.warn(`[Figma Plugin] Failed to load font ${family} ${style}, falling back to Inter Regular:`, error);
-    const fallback: FontName = { family: "Inter", style: "Regular" };
-    await figma.loadFontAsync(fallback);
-    loadedFonts.add("Inter::Regular");
-    return fallback;
+  // Handle common style naming variations across Figma desktop and web installations
+  const styleCandidates: string[] = [
+    style,
+    style === "SemiBold" ? "Semi Bold" : undefined,
+    style === "Semi Bold" ? "SemiBold" : undefined,
+    style === "Medium" ? "Regular" : undefined,
+    style === "Bold" ? "Semi Bold" : undefined,
+    "Regular"
+  ].filter((s): s is string => Boolean(s));
+
+  for (const candidate of styleCandidates) {
+    try {
+      const fontName: FontName = { family, style: candidate };
+      await figma.loadFontAsync(fontName);
+      loadedFonts.add(key);
+      return fontName;
+    } catch {
+      // Try next candidate
+    }
   }
+
+  // Absolute fallback
+  const fallback: FontName = { family: "Inter", style: "Regular" };
+  try {
+    await figma.loadFontAsync(fallback);
+  } catch (err) {
+    console.warn("Failed to load even fallback font:", err);
+  }
+  loadedFonts.add(key);
+  return fallback;
 }

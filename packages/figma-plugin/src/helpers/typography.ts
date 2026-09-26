@@ -1,7 +1,7 @@
 /**
  * Enterprise Typography & UI Copy Guardian
  * Enforces professional typographic hierarchy, calibrated leading, optical tracking,
- * and eliminates unprofessional emojis from UI designs.
+ * standardized type scales, deterministic archetype font pairings, and eliminates emojis.
  */
 
 // Regex covering all Unicode emoji blocks (Standard, Emoticons, Symbols, Flags, Modifiers)
@@ -38,6 +38,59 @@ export function sanitizeUiText(rawText: string): {
   };
 }
 
+export interface TypeScaleEntry {
+  size: number;
+  lineHeight: number;
+  letterSpacing: number; // in percent
+  defaultWeight: string;
+}
+
+/**
+ * Deterministic Standard Type Scale based on 8pt/4pt mathematical increments
+ */
+export const STANDARD_TYPE_SCALE: Record<string, TypeScaleEntry> = {
+  "display-2xl": { size: 64, lineHeight: 72, letterSpacing: -1.5, defaultWeight: "Bold" },
+  "display-xl": { size: 48, lineHeight: 56, letterSpacing: -1.5, defaultWeight: "Bold" },
+  "display-lg": { size: 36, lineHeight: 44, letterSpacing: -1.2, defaultWeight: "SemiBold" },
+  h1: { size: 30, lineHeight: 38, letterSpacing: -1.0, defaultWeight: "SemiBold" },
+  h2: { size: 24, lineHeight: 32, letterSpacing: -0.8, defaultWeight: "SemiBold" },
+  h3: { size: 20, lineHeight: 28, letterSpacing: -0.5, defaultWeight: "SemiBold" },
+  subheading: { size: 18, lineHeight: 26, letterSpacing: -0.3, defaultWeight: "Medium" },
+  "body-lg": { size: 16, lineHeight: 24, letterSpacing: 0, defaultWeight: "Regular" },
+  "body-md": { size: 14, lineHeight: 22, letterSpacing: 0, defaultWeight: "Regular" },
+  "body-sm": { size: 13, lineHeight: 18, letterSpacing: 0.2, defaultWeight: "Regular" },
+  caption: { size: 12, lineHeight: 16, letterSpacing: 1.2, defaultWeight: "Medium" },
+  badge: { size: 11, lineHeight: 14, letterSpacing: 1.5, defaultWeight: "SemiBold" },
+};
+
+export type TypographyArchetype = "institutional" | "modern-saas" | "corporate" | "creative-editorial";
+
+export const ARCHETYPE_FONT_PAIRINGS: Record<
+  TypographyArchetype,
+  { headingFamily: string; bodyFamily: string; accentFamily: string }
+> = {
+  institutional: {
+    headingFamily: "Playfair Display",
+    bodyFamily: "Inter",
+    accentFamily: "Cinzel",
+  },
+  "modern-saas": {
+    headingFamily: "Inter",
+    bodyFamily: "Inter",
+    accentFamily: "Inter",
+  },
+  corporate: {
+    headingFamily: "Roboto",
+    bodyFamily: "Inter",
+    accentFamily: "Roboto Mono",
+  },
+  "creative-editorial": {
+    headingFamily: "Playfair Display",
+    bodyFamily: "Inter",
+    accentFamily: "Playfair Display",
+  },
+};
+
 export interface TypographyCalculations {
   lineHeight: number;
   letterSpacing: number; // in percent
@@ -46,13 +99,6 @@ export interface TypographyCalculations {
 /**
  * Computes optimal proportional leading (line-height) and optical tracking (letter-spacing)
  * based on font size and typographic role.
- *
- * Rules:
- * - Display / Hero (>= 32px): Tight leading (1.15x), compact tracking (-1.5%) for punchy modern headlines.
- * - Titles (24px - 31px): Balanced leading (1.25x), subtle compact tracking (-1.0%).
- * - Subheadings (18px - 23px): Clear leading (1.35x), tracking (-0.5%).
- * - Body Text (14px - 17px): Ergonomic reading leading (1.50x), neutral tracking (0%).
- * - Captions & Badges (<= 13px): Proportional leading (1.40x), open tracking (+1.5% to +2.5%) for small-scale legibility.
  */
 export function calculateTypographyProperties(
   fontSize: number,
@@ -105,8 +151,17 @@ export function calculateTypographyProperties(
 export function applyIntelligentTypography(
   textNode: TextNode,
   fontSize?: number,
-  isUppercase?: boolean
+  isUppercase?: boolean,
+  variant?: string
 ) {
+  if (variant && STANDARD_TYPE_SCALE[variant]) {
+    const scale = STANDARD_TYPE_SCALE[variant];
+    textNode.fontSize = scale.size;
+    textNode.lineHeight = { value: scale.lineHeight, unit: "PIXELS" };
+    textNode.letterSpacing = { value: scale.letterSpacing, unit: "PERCENT" };
+    return;
+  }
+
   const size = fontSize ?? (typeof textNode.fontSize === "number" ? textNode.fontSize : 16);
   const { lineHeight, letterSpacing } = calculateTypographyProperties(size, isUppercase);
 

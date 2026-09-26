@@ -168,10 +168,54 @@ server.tool(
   }
 );
 
+// Helper to resolve local file paths or base64 image strings into sanitized data URIs
+function resolveLocalImage(imageStr?: string): string | undefined {
+  if (!imageStr) return undefined;
+  if (imageStr.startsWith("http://") || imageStr.startsWith("https://")) {
+    return imageStr;
+  }
+  if (imageStr.startsWith("data:")) {
+    // Strip extraneous whitespace/newlines from base64
+    const [header, data] = imageStr.split(",");
+    if (data) {
+      return `${header},${data.replace(/\s+/g, "")}`;
+    }
+    return imageStr.replace(/\s+/g, "");
+  }
+  // Check local filesystem
+  try {
+    const cleanPath = imageStr.trim().replace(/^file:\/\/\/?/, "");
+    if (fs.existsSync(cleanPath)) {
+      const ext = path.extname(cleanPath).toLowerCase();
+      let mime = "image/png";
+      if (ext === ".jpg" || ext === ".jpeg") mime = "image/jpeg";
+      else if (ext === ".svg") mime = "image/svg+xml";
+      else if (ext === ".webp") mime = "image/webp";
+      const buffer = fs.readFileSync(cleanPath);
+      return `data:${mime};base64,${buffer.toString("base64")}`;
+    }
+  } catch (err: any) {
+    logger.warn(`Could not resolve local image path "${imageStr}": ${err?.message || err}`);
+  }
+  return imageStr;
+}
+
+function resolveSpecImages(node: any) {
+  if (!node || typeof node !== "object") return;
+  if (typeof node.image === "string") {
+    node.image = resolveLocalImage(node.image);
+  }
+  if (Array.isArray(node.children)) {
+    for (const child of node.children) {
+      resolveSpecImages(child);
+    }
+  }
+}
+
 // Tool: Set AutoLayout on a Frame
 server.tool(
   "set_autolayout",
-  "Configure Flexbox/AutoLayout rules (direction, padding, gap, alignment) on an existing frame",
+  "Configure Flexbox/AutoLayout rules (direction, padding, gap, alignment, wrapping) on an existing frame",
   {
     nodeId: z.string().describe("The Frame node ID to apply AutoLayout to"),
     direction: z.enum(["HORIZONTAL", "VERTICAL", "NONE"]).describe("Layout direction"),
@@ -191,6 +235,8 @@ server.tool(
       .describe("Alignment along the cross axis"),
     primaryAxisSizing: z.enum(["FIXED", "AUTO"]).optional().describe("FIXED or AUTO (Hug)"),
     counterAxisSizing: z.enum(["FIXED", "AUTO"]).optional().describe("FIXED or AUTO (Hug)"),
+    wrap: z.boolean().optional().describe("Enable multi-line flex wrapping (layoutWrap = 'WRAP') for pill/badge clouds"),
+    counterAxisSpacing: z.number().optional().describe("Cross-axis gap between wrapped rows in pixels"),
   },
   async (params) => {
     const result = await bridge.sendCommand("set_autolayout", params);
@@ -208,7 +254,7 @@ server.tool(
 // Tool: Update properties of an existing node
 server.tool(
   "update_node",
-  "Update dimensions, coordinates, fills, corner radius, opacity, or visibility of an existing node",
+  "Update dimensions, coordinates, fills, images (supports local file paths), corner radius, opacity, layout alignment, or text auto-resize of an existing node",
   {
     nodeId: z.string().describe("Target node ID"),
     name: z.string().optional().describe("New name for the node"),
@@ -217,12 +263,21 @@ server.tool(
     width: z.number().optional().describe("New width in pixels"),
     height: z.number().optional().describe("New height in pixels"),
     fill: z.string().optional().describe("New hex color fill (e.g. '#FFFFFF')"),
-    image: z.string().optional().describe("New image URL or base64 data URI"),
+    image: z.string().optional().describe("New image URL, local file path, or base64 data URI"),
     cornerRadius: z.number().optional().describe("New corner radius"),
     opacity: z.number().optional().describe("Opacity from 0 to 1"),
     visible: z.boolean().optional().describe("Visibility boolean"),
+    layoutAlign: z.enum(["INHERIT", "STRETCH", "MIN", "CENTER", "MAX"]).optional().describe("Layout alignment in parent flex container"),
+    layoutGrow: z.number().optional().describe("Flex grow factor (0 or 1)"),
+    textAutoResize: z.enum(["NONE", "WIDTH_AND_HEIGHT", "HEIGHT", "TRUNCATE"]).optional().describe("Text auto-resize mode"),
+    primaryAxisAlignItems: z.enum(["MIN", "CENTER", "MAX", "SPACE_BETWEEN"]).optional().describe("Primary axis alignment for frames"),
+    counterAxisAlignItems: z.enum(["MIN", "CENTER", "MAX", "BASELINE"]).optional().describe("Counter axis alignment for frames"),
+    itemSpacing: z.number().optional().describe("AutoLayout gap between children"),
   },
   async (params) => {
+    if (params.image) {
+      params.image = resolveLocalImage(params.image);
+    }
     const result = await bridge.sendCommand("update_node", params);
     return {
       content: [
@@ -467,12 +522,121 @@ server.tool(
       ),
   },
   async ({ spec }) => {
-    const result = await bridge.sendCommand("generate_ui_tree", spec, 90000);
+    let resolvedSpec = spec;
+    if (spec.specFilePath) {
+      const cleanPath = String(spec.specFilePath).trim().replace(/^file:\/\/\/?/, "");
+      if (fs.existsSync(cleanPath)) {
+        resolvedSpec = JSON.parse(fs.readFileSync(cleanPath, "utf-8"));
+      } else {
+        throw new Error(`ScreenSpec file not found at path: ${spec.specFilePath}`);
+      }
+    }
+    resolveSpecImages(resolvedSpec);
+    const result = await bridge.sendCommand("generate_ui_tree", resolvedSpec, 90000);
     return {
       content: [
         {
           type: "text",
           text: JSON.stringify(result, null, 2),
+        },
+      ],
+    };
+  }
+);
+
+// Tool: Plan Screen Architecture & Decompose Sequential Execution
+server.tool(
+  "plan_screen_architecture",
+  "Architect and plan a multi-section UI screen before code generation. Decomposes the UI into an ordered sequence of structured sections, calculates 8pt grid dimensions, establishes a typography archetype and scale, specifies layout constraints (wrapping, auto-layout directions, stretch alignment) to guarantee zero overflow/overlap, and provides a step-by-step sequential execution roadmap.",
+  {
+    screenName: z.string().describe("Screen name, e.g. 'Institutional Consulting Landing Page'"),
+    preset: z.enum(["Desktop", "iPhone 16", "iPhone 16 Pro Max", "Android", "Tablet", "Custom"]).describe("Target frame preset"),
+    archetype: z.enum(["institutional", "modern-saas", "corporate", "creative-editorial"]).default("institutional").describe("Typography archetype"),
+    palette: z.object({
+      background: z.string().describe("Background hex, e.g. '#FBF9F5'"),
+      surface: z.string().describe("Surface/card hex, e.g. '#FFFFFF'"),
+      primary: z.string().describe("Primary brand color, e.g. '#0A192F'"),
+      accent: z.string().describe("Accent/gold color, e.g. '#C5A880'"),
+      textPrimary: z.string().describe("High-contrast text, e.g. '#0A192F'"),
+      textSecondary: z.string().describe("Muted copy, e.g. '#4A5568'"),
+      border: z.string().describe("Subtle border, e.g. '#E2DCD2'"),
+    }).describe("Color token palette"),
+    sections: z.array(
+      z.object({
+        id: z.string().describe("Unique section identifier (e.g. '01-hero')"),
+        name: z.string().describe("Descriptive section name"),
+        layout: z.enum(["horizontal", "vertical", "grid", "dual-column"]).describe("Layout pattern"),
+        estimatedHeight: z.number().describe("Estimated height in pixels (8pt multiple)"),
+        elements: z.array(z.string()).describe("Content items and elements in this section"),
+        antiOverflowRules: z.array(z.string()).describe("Rules to eliminate overflow: e.g. 'wrap=true on tag cloud', 'text layoutAlign=STRETCH', 'crossAlignItems=min'"),
+      })
+    ).describe("Ordered array of sections to build sequentially"),
+  },
+  async ({ screenName, preset, archetype, palette, sections }) => {
+    const widthMap: Record<string, number> = {
+      Desktop: 1440,
+      "iPhone 16": 393,
+      "iPhone 16 Pro Max": 440,
+      Android: 360,
+      Tablet: 834,
+      Custom: 1440,
+    };
+    const screenWidth = widthMap[preset] || 1440;
+    const contentMaxWidth = preset === "Desktop" ? 1200 : screenWidth - 32;
+
+    const fontPairing = {
+      institutional: { heading: "Playfair Display", body: "Inter", accent: "Cinzel" },
+      "modern-saas": { heading: "Inter", body: "Inter", accent: "Inter" },
+      corporate: { heading: "Roboto", body: "Inter", accent: "Roboto Mono" },
+      "creative-editorial": { heading: "Playfair Display", body: "Inter", accent: "Playfair Display" },
+    }[archetype];
+
+    const totalEstimatedHeight = sections.reduce((sum, s) => sum + s.estimatedHeight, 0);
+
+    const blueprint = {
+      meta: {
+        screenName,
+        preset,
+        canvasWidth: screenWidth,
+        contentMaxWidth,
+        totalEstimatedHeight,
+        gridUnit: "8pt",
+      },
+      typography: {
+        archetype,
+        fontPairing,
+        scale: {
+          display: { variant: "display-xl", size: 48, lineHeight: 56, weight: "Bold", role: "Hero headline" },
+          sectionHeading: { variant: "h1", size: 30, lineHeight: 38, weight: "SemiBold", role: "Major section headers" },
+          cardTitle: { variant: "h2", size: 24, lineHeight: 32, weight: "SemiBold", role: "Card titles & modal headers" },
+          subheading: { variant: "subheading", size: 18, lineHeight: 26, weight: "Medium", role: "Pillar titles, lead paragraphs" },
+          body: { variant: "body-md", size: 14, lineHeight: 22, weight: "Regular", role: "Descriptions, bullet points" },
+          caption: { variant: "caption", size: 12, lineHeight: 16, weight: "Medium", role: "Metadata, pills, tags" },
+        },
+      },
+      palette,
+      antiOverflowProtocol: [
+        "1. Never use single-line textAutoResize in vertical cards or containers. Set text width='fill' or layoutAlign='STRETCH'.",
+        "2. Any horizontal row of dynamic items (pills, badges, logos, metrics) must specify wrap=true and counterAxisSpacing=8.",
+        "3. Multi-column sections with unequal heights must use crossAlignItems='min' (top-aligned) to prevent bottom card drift.",
+        "4. All images must be resolved via local file paths or sanitized base64; fallbacks must use branded surface fills (#EDE8DC) instead of empty fills.",
+      ],
+      sequentialRoadmap: sections.map((s, index) => ({
+        step: index + 1,
+        sectionId: s.id,
+        name: s.name,
+        targetDimensions: { width: contentMaxWidth, estimatedHeight: s.estimatedHeight },
+        layoutMode: s.layout,
+        antiOverflowConstraints: s.antiOverflowRules,
+        executionInstruction: `Generate section '${s.name}' as a vertical or horizontal container with width='fill' or ${contentMaxWidth}px, applying 8pt spacing and typography scale tokens.`,
+      })),
+    };
+
+    return {
+      content: [
+        {
+          type: "text",
+          text: JSON.stringify(blueprint, null, 2),
         },
       ],
     };
