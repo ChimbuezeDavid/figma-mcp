@@ -1,0 +1,21 @@
+startCommand:
+  type: stdio
+  configSchema:
+    type: object
+    properties:
+      figmaPersonalAccessToken:
+        type: string
+        description: "Optional Figma Personal Access Token (for REST API capabilities)"
+      wsPort:
+        type: number
+        description: "WebSocket Bridge port for the live Figma companion plugin (default: 3055)"
+        default: 3055
+  commandFunction: |-
+    (config) => ({
+      command: 'node',
+      args: ['packages/mcp-server/dist/index.js'],
+      env: {
+        ...(config?.figmaPersonalAccessToken ? { FIGMA_PERSONAL_ACCESS_TOKEN: config.figmaPersonalAccessToken } : {}),
+        WS_PORT: String(config?.wsPort || 3055)
+      }
+    })
