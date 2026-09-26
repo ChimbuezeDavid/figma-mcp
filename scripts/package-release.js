@@ -30,6 +30,15 @@ const releaseZipPath = path.join(releaseDir, "figma-companion-plugin.zip");
   }
 });
 
+// Sync documentation to mcp-server package for NPM registry
+if (fs.existsSync(path.join(rootDir, "README.md"))) {
+  fs.copyFileSync(path.join(rootDir, "README.md"), path.join(rootDir, "packages", "mcp-server", "README.md"));
+}
+if (fs.existsSync(path.join(rootDir, "LICENSE"))) {
+  fs.copyFileSync(path.join(rootDir, "LICENSE"), path.join(rootDir, "packages", "mcp-server", "LICENSE"));
+}
+
+
 // Step 2: Prepare standalone manifest.json
 console.log("\n2️⃣  Creating standalone Figma plugin bundle...");
 const standaloneManifest = {
