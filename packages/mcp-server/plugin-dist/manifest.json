@@ -5,7 +5,9 @@
   "main": "code.js",
   "ui": "ui.html",
   "editorType": [
-    "figma"
+    "figma",
+    "figjam",
+    "slides"
   ],
   "networkAccess": {
     "allowedDomains": [

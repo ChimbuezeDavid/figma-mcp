@@ -47,7 +47,7 @@ const standaloneManifest = {
   api: "1.0.0",
   main: "code.js",
   ui: "ui.html",
-  editorType: ["figma"],
+  editorType: ["figma", "figjam", "slides"],
   networkAccess: {
     allowedDomains: ["*"],
     devAllowedDomains: ["http://localhost:3055"],
